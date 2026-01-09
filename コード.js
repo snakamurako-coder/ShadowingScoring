@@ -59,7 +59,14 @@ function setupEnvironment() {
   let resultSheet = ss.getSheetByName(MASTER_SHEET_NAME);
   if (!resultSheet) {
     resultSheet = ss.insertSheet(MASTER_SHEET_NAME);
-    resultSheet.appendRow(['Timestamp', 'Book', 'Unit', 'TaskID', 'UserID', 'Score', 'JSON_File', 'Audio_File']); // ヘッダー
+    resultSheet.appendRow(['Timestamp', 'Book', 'Unit', 'TaskID', 'UserID', 'ShadowingScore', 'ReadingScore', 'Speed', 'JSON_File', 'Audio_File']); // ヘッダー
+  } else {
+    // 既存シートがある場合、ヘッダー行を確認して更新（簡易的実装）
+    const header = resultSheet.getRange(1, 1, 1, 10).getValues()[0];
+    if (header[5] === 'Score') {
+       // 古いヘッダーの場合は警告ログを出すか、ユーザーに手動対応を促す（破壊的変更を避けるためここでは変更しないが、新規行は新形式で追加される）
+       console.warn("ResultMaster has old header format. New columns will be appended.");
+    }
   }
 
   // Whitelistシート設定
@@ -127,9 +134,23 @@ function getUserInfo() {
 }
 
 /**
- * PassageBooksフォルダ内の教材構造を取得
+ * PassageBooksフォルダ内の教材構造を取得（キャッシュ対応）
  */
 function getMaterialsStructure() {
+  const props = PropertiesService.getScriptProperties();
+  const cached = props.getProperty('MATERIALS_CACHE');
+  
+  if (cached) {
+    return JSON.parse(cached);
+  }
+  
+  return updateMaterialsCache();
+}
+
+/**
+ * 教材構造のキャッシュ強制更新（管理者・任意更新用）
+ */
+function updateMaterialsCache() {
   const env = setupEnvironment();
   const folder = DriveApp.getFolderById(env.folderIds['PassageBooks']);
   const files = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
@@ -150,12 +171,13 @@ function getMaterialsStructure() {
       
       // 列構成: 通し番号(0), 見出し(1), 参照文(2), 表示文(3), 音声ファイル名(4)
       for (let i = 1; i < rows.length; i++) {
-        if (rows[i][0] && rows[i][4]) { 
+        if (rows[i][0]) { // IDがあれば有効とする（音声ファイルがない場合はReadingOnly）
            tasks.push({
              id: rows[i][0],
              title: rows[i][1],
              refText: rows[i][2],
-             audioName: rows[i][4]
+             displayText: rows[i][3], // 表示文も取得
+             audioName: rows[i][4] || "" // 空文字許容
            });
         }
       }
@@ -164,6 +186,8 @@ function getMaterialsStructure() {
       }
     });
   }
+  
+  PropertiesService.getScriptProperties().setProperty('MATERIALS_CACHE', JSON.stringify(structure));
   return structure;
 }
 
@@ -236,7 +260,9 @@ function processInboxQueue() {
         data.unit,
         data.taskId,
         data.userId,
-        data.score,
+        data.shadowing_score, // New
+        data.reading_score,   // New
+        data.playback_speed,  // New
         file.getName(),
         data.filenameBase + '.webm' 
       ]);

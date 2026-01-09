@@ -1,400 +1,881 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <base target="_top">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Roboto', sans-serif; padding: 20px; background-color: #f5f5f5; color: #333; }
-    .container { max-width: 800px; margin: 0 auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-    
+    body {
+      font-family: 'Roboto', sans-serif;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 25px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+      color: #2c3e50;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 10px;
+    }
+
     /* Control Panel */
-    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-    select, button { padding: 10px; border-radius: 4px; border: 1px solid #ccc; width: 100%; font-size: 16px; }
-    button { background-color: #3498db; color: white; border: none; cursor: pointer; transition: background 0.3s; }
-    button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
-    button.record-btn { background-color: #e74c3c; }
-    
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    select,
+    button {
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      width: 100%;
+      font-size: 16px;
+    }
+
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:disabled {
+      background-color: #bdc3c7;
+      cursor: not-allowed;
+    }
+
+    button.record-btn {
+      background-color: #e74c3c;
+    }
+
     /* Status & Loader */
-    #status-area { margin-top: 15px; font-weight: bold; text-align: center; height: 24px; color: #e67e22; }
-    #loader { display: none; width: 100%; height: 4px; background-color: #f3f3f3; margin-top: 10px; overflow: hidden; }
-    #loader-bar { width: 50%; height: 100%; background-color: #3498db; animation: loading 1s infinite ease-in-out; }
-    @keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+    #status-area {
+      margin-top: 15px;
+      font-weight: bold;
+      text-align: center;
+      height: 24px;
+      color: #e67e22;
+    }
+
+    #loader {
+      display: none;
+      width: 100%;
+      height: 4px;
+      background-color: #f3f3f3;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+
+    #loader-bar {
+      width: 50%;
+      height: 100%;
+      background-color: #3498db;
+      animation: loading 1s infinite ease-in-out;
+    }
+
+    @keyframes loading {
+      0% {
+        transform: translateX(-100%);
+      }
+
+      100% {
+        transform: translateX(200%);
+      }
+    }
 
     /* Results */
-    #result-area { margin-top: 20px; padding: 15px; background: #fafafa; border: 1px solid #eee; display: none; }
-    .score-display { font-size: 1.5em; font-weight: bold; color: #27ae60; }
-    .diff-text { white-space: pre-wrap; margin-top: 10px; font-family: monospace; }
+    #result-area {
+      margin-top: 20px;
+      padding: 15px;
+      background: #fafafa;
+      border: 1px solid #eee;
+      display: none;
+    }
+
+    .score-display {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #27ae60;
+    }
+
+    .diff-text {
+      white-space: pre-wrap;
+      margin-top: 10px;
+      font-family: monospace;
+    }
+
+    /* New UI Elements */
+    .stt-comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .stt-box {
+      padding: 10px;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .stt-box h4 {
+      margin-top: 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .highlight-added {
+      background-color: #e3f2fd;
+      color: #1976d2;
+    }
+
+    /* Blue for added words */
+    .highlight-missing {
+      background-color: #ffebee;
+      color: #c62828;
+    }
+
+    /* Red for missing words */
+
+    .practice-list {
+      margin-top: 20px;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+    }
+
+    .practice-item {
+      display: inline-block;
+      margin: 5px;
+      padding: 5px 10px;
+      background: #fff3e0;
+      border-radius: 15px;
+      font-size: 14px;
+    }
+
+    .speak-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #e67e22;
+      font-size: 1.2em;
+      padding: 0 0 0 5px;
+    }
+
+    .volume-meter {
+      width: 100%;
+      height: 10px;
+      background: #eee;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 5px;
+    }
+
+    .volume-bar {
+      height: 100%;
+      width: 0%;
+      background: #27ae60;
+      transition: width 0.1s;
+    }
+
+    .volume-bar.warning {
+      background: #f1c40f;
+    }
+
+    .volume-bar.clip {
+      background: #e74c3c;
+    }
+
+    #reading-mode-area {
+      display: none;
+      margin-top: 20px;
+    }
+
+    #reading-text-area {
+      width: 100%;
+      height: 300px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 15px;
+      background: #fff;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    .scroll-btn {
+      width: 100%;
+      margin-top: 5px;
+      background: #bdc3c7;
+      color: #333;
+      font-size: 12px;
+      padding: 5px;
+    }
   </style>
 </head>
+
 <body>
 
-<div class="container">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <h2>Shadowing Practice</h2>
-    <div id="user-display">Loading User...</div>
+  <div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Shadowing Practice</h2>
+      <div style="text-align:right;">
+        <div id="user-display">Loading User...</div>
+        <button onclick="loadMaterials(true)"
+          style="width:auto; padding: 2px 8px; font-size:10px; margin-top:5px;">Refresh Books</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <select id="sel-book" onchange="onBookChange()">
+        <option value="">Select Book</option>
+      </select>
+      <select id="sel-unit" onchange="onUnitChange()" disabled>
+        <option value="">Select Unit</option>
+      </select>
+    </div>
+
+    <div class="controls">
+      <select id="sel-task" onchange="onTaskChange()" disabled>
+        <option value="">Select Task</option>
+      </select>
+      <select id="sel-speed">
+        <option value="0.6">Speed: x0.6</option>
+        <option value="0.7">Speed: x0.7</option>
+        <option value="0.8">Speed: x0.8</option>
+        <option value="0.9">Speed: x0.9</option>
+        <option value="1.0" selected>Speed: x1.0 (Normal)</option>
+        <option value="1.1">Speed: x1.1</option>
+        <option value="1.2">Speed: x1.2</option>
+      </select>
+    </div>
+
+    <div class="controls">
+      <div>
+        <label style="font-size:12px; color:#666;">Accent:</label>
+        <select id="sel-accent" style="margin-top:5px;">
+          <option value="en-US" selected>US English</option>
+          <option value="en-GB">UK English</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px; color:#666;">Mic Volume:</label>
+        <div class="volume-meter">
+          <div id="volume-bar" class="volume-bar"></div>
+        </div>
+        <input type="range" id="mic-gain" min="0.5" max="3.0" step="0.1" value="1.0"
+          style="width:100%; margin-top:5px;">
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top: 20px; display:flex; justify-content: center; gap: 20px;">
+      <button id="btn-start" onclick="startShadowing()" disabled style="width: 180px; height: 50px; font-size: 18px;">
+        Start Shadowing
+      </button>
+      <button id="btn-stop" onclick="stopShadowing(false)" disabled
+        style="width: 100px; height: 50px; font-size: 18px; background-color: #95a5a6;">
+        Stop
+      </button>
+    </div>
+
+    <div id="loader">
+      <div id="loader-bar"></div>
+    </div>
+    <div id="status-area">Ready</div>
+
+    <audio id="audio-player" style="display:none;"></audio>
+
+    <div id="reading-mode-area">
+      <button class="scroll-btn" onclick="scrollRead(-50)">▲ Scroll Up</button>
+      <div id="reading-text-area"></div>
+      <button class="scroll-btn" onclick="scrollRead(50)">▼ Scroll Down</button>
+      <div style="text-align:center; margin-top:10px;">
+        <button onclick="finishReading()" style="background:#27ae60;">Finish Reading</button>
+      </div>
+    </div>
+
+    <div id="result-area">
+      <div>
+        Reading Score: <span id="score-val" class="score-display">--</span>% |
+        Shadowing Score: <span id="shadow-score-val" class="score-display">--</span>%
+      </div>
+      <div style="font-size:0.9em; color:#777;">Wait for audio end... Analyzing...</div>
+
+      <div class="stt-comparison">
+        <div class="stt-box">
+          <h4>Your Speech (STT)</h4>
+          <div id="user-stt-display"></div>
+        </div>
+        <div class="stt-box">
+          <h4>Reference Text</h4>
+          <div id="ref-text-display"></div>
+        </div>
+      </div>
+
+      <div class="practice-list" id="practice-area">
+        <h4>Pronunciation Practice</h4>
+        <div id="practice-items"></div>
+      </div>
+    </div>
   </div>
 
-  <div class="controls">
-    <select id="sel-book" onchange="onBookChange()">
-      <option value="">Select Book</option>
-    </select>
-    <select id="sel-unit" onchange="onUnitChange()" disabled>
-      <option value="">Select Unit</option>
-    </select>
-  </div>
-  
-  <div class="controls">
-    <select id="sel-task" onchange="onTaskChange()" disabled>
-      <option value="">Select Task</option>
-    </select>
-    <select id="sel-speed">
-      <option value="0.6">Speed: x0.6</option>
-      <option value="0.8">Speed: x0.8</option>
-      <option value="1.0" selected>Speed: x1.0 (Normal)</option>
-      <option value="1.2">Speed: x1.2</option>
-    </select>
-  </div>
+  <script>
+    // --- Global Variables ---
+    let currentUser = { name: '', id4: '' };
+    let materials = {};
+    let currentTask = null;
+    let audioBlobUrl = null;
+    let recognition = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let finalTranscript = '';
+    let isShadowing = false;
+    let audioContext = null;
+    let analyser = null;
+    let microphone = null;
+    let gainNode = null;
+    let silenceTimer = null;
+    let isReadingMode = false;
 
-  <div style="text-align:center; margin-top: 20px;">
-    <button id="btn-start" onclick="startShadowing()" disabled style="width: 200px; height: 50px; font-size: 18px;">
-      Start Shadowing
-    </button>
-  </div>
+    // --- Initialization ---
+    window.onload = function () {
+      google.script.run.withSuccessHandler(user => {
+        currentUser = user;
+        document.getElementById('user-display').innerText = `${user.name} (${user.id4})`;
+        if (!user.isAuthorized) alert("Unregistered User. Please contact admin.");
 
-  <div id="loader"><div id="loader-bar"></div></div>
-  <div id="status-area">Ready</div>
-
-  <audio id="audio-player" style="display:none;"></audio>
-
-  <div id="result-area">
-    <div>Score: <span id="score-val" class="score-display">--</span>%</div>
-    <div style="font-size:0.9em; color:#777;">Wait for audio end... Analyzing...</div>
-    <div id="transcript-diff" class="diff-text"></div>
-  </div>
-</div>
-
-<script>
-// --- Global Variables ---
-let currentUser = { name: '', id4: '' };
-let materials = {};
-let currentTask = null;
-let audioBlobUrl = null;
-let recognition = null;
-let mediaRecorder = null;
-let audioChunks = [];
-let finalTranscript = '';
-let isShadowing = false;
-
-// --- Initialization ---
-window.onload = function() {
-  google.script.run.withSuccessHandler(user => {
-    currentUser = user;
-    document.getElementById('user-display').innerText = `${user.name} (${user.id4})`;
-    if(!user.isAuthorized) alert("Unregistered User. Please contact admin.");
-    
-    // Load Materials
-    loadMaterials();
-  }).getUserInfo();
-};
-
-function loadMaterials() {
-  google.script.run.withSuccessHandler(data => {
-    materials = data;
-    const bookSel = document.getElementById('sel-book');
-    for (let book in materials) {
-      let opt = document.createElement('option');
-      opt.value = book;
-      opt.text = book;
-      bookSel.add(opt);
-    }
-  }).getMaterialsStructure();
-}
-
-// --- Dropdown Logic ---
-function onBookChange() {
-  const book = document.getElementById('sel-book').value;
-  const unitSel = document.getElementById('sel-unit');
-  unitSel.innerHTML = '<option value="">Select Unit</option>';
-  unitSel.disabled = !book;
-  document.getElementById('sel-task').innerHTML = '<option value="">Select Task</option>';
-  document.getElementById('sel-task').disabled = true;
-  document.getElementById('btn-start').disabled = true;
-
-  if (book) {
-    for (let unit in materials[book]) {
-      let opt = document.createElement('option');
-      opt.value = unit;
-      opt.text = unit;
-      unitSel.add(opt);
-    }
-  }
-}
-
-function onUnitChange() {
-  const book = document.getElementById('sel-book').value;
-  const unit = document.getElementById('sel-unit').value;
-  const taskSel = document.getElementById('sel-task');
-  taskSel.innerHTML = '<option value="">Select Task</option>';
-  taskSel.disabled = !unit;
-  document.getElementById('btn-start').disabled = true;
-
-  if (unit) {
-    const tasks = materials[book][unit];
-    tasks.forEach(t => {
-      let opt = document.createElement('option');
-      opt.value = JSON.stringify(t); // Store whole object
-      opt.text = `No.${t.id}: ${t.title}`;
-      taskSel.add(opt);
-    });
-  }
-}
-
-function onTaskChange() {
-  const val = document.getElementById('sel-task').value;
-  const btn = document.getElementById('btn-start');
-  
-  if (val) {
-    currentTask = JSON.parse(val);
-    btn.disabled = true; // Disable until audio loads
-    downloadAudio(currentTask.audioName);
-  } else {
-    btn.disabled = true;
-  }
-}
-
-// --- Audio Loading ---
-function downloadAudio(filename) {
-  setStatus('Downloading audio...', true);
-  google.script.run.withSuccessHandler(res => {
-    // Convert Base64 to Blob URL for caching in browser memory
-    const byteCharacters = atob(res.base64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], {type: res.mime}); // Opus or MP3
-    
-    if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
-    audioBlobUrl = URL.createObjectURL(blob);
-    
-    const audioEl = document.getElementById('audio-player');
-    audioEl.src = audioBlobUrl;
-    
-    setStatus('Ready to Start', false);
-    document.getElementById('btn-start').disabled = false;
-  }).getAudioData(filename);
-}
-
-// --- Shadowing Logic (The Core) ---
-async function startShadowing() {
-  if (isShadowing) return;
-  isShadowing = true;
-  finalTranscript = '';
-  audioChunks = [];
-  
-  const audioEl = document.getElementById('audio-player');
-  const speed = parseFloat(document.getElementById('sel-speed').value);
-  audioEl.playbackRate = speed;
-  
-  // UI Update
-  document.getElementById('btn-start').disabled = true;
-  document.getElementById('result-area').style.display = 'none';
-  
-  // 1. Setup Recording & STT
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        sampleRate: 24000 // Requested
-      }
-    });
-
-    // Recorder Init (Opus/WebM)
-    const options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 48000 };
-    mediaRecorder = new MediaRecorder(stream, options);
-    
-    mediaRecorder.ondataavailable = e => {
-      if (e.data.size > 0) audioChunks.push(e.data);
+        // Load Materials
+        loadMaterials();
+      }).getUserInfo();
     };
 
-    // Speech Recognition Init
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.lang = 'en-US'; // Adjust based on content language
-    recognition.interimResults = false;
-    recognition.continuous = true;
-    
-    recognition.onresult = event => {
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + ' ';
+
+
+    function loadMaterials(forceUpdate = false) {
+      if (forceUpdate) setStatus("Updating Materials Cache...", true);
+
+      const runner = forceUpdate ? google.script.run.withSuccessHandler(updateUIWithMaterials).updateMaterialsCache()
+        : google.script.run.withSuccessHandler(updateUIWithMaterials).getMaterialsStructure();
+    }
+
+    function updateUIWithMaterials(data) {
+      materials = data;
+      const bookSel = document.getElementById('sel-book');
+      bookSel.innerHTML = '<option value="">Select Book</option>';
+      for (let book in materials) {
+        let opt = document.createElement('option');
+        opt.value = book;
+        opt.text = book;
+        bookSel.add(opt);
+      }
+      setStatus("Ready", false);
+    }
+
+    // --- Dropdown Logic ---
+    function onBookChange() {
+      const book = document.getElementById('sel-book').value;
+      const unitSel = document.getElementById('sel-unit');
+      unitSel.innerHTML = '<option value="">Select Unit</option>';
+      unitSel.disabled = !book;
+      document.getElementById('sel-task').innerHTML = '<option value="">Select Task</option>';
+      document.getElementById('sel-task').disabled = true;
+      document.getElementById('btn-start').disabled = true;
+
+      if (book) {
+        for (let unit in materials[book]) {
+          let opt = document.createElement('option');
+          opt.value = unit;
+          opt.text = unit;
+          unitSel.add(opt);
         }
       }
-    };
-    
-    // 2. Start Process (3s Delay -> Play)
-    setStatus("Wait 3s... (Get Ready)", true);
-    
-    // Start Recording & STT BEFORE Audio plays
-    mediaRecorder.start();
-    recognition.start();
-
-    setTimeout(() => {
-      setStatus("Shadowing! (Listening & Recording)", true);
-      audioEl.play();
-      
-      // Handle Audio End
-      audioEl.onended = () => {
-        setStatus("Audio Ended. Waiting 3s...", true);
-        setTimeout(() => {
-          stopShadowing();
-        }, 3000); // 3s Post-roll
-      };
-      
-    }, 3000); // 3s Pre-roll
-
-  } catch (err) {
-    console.error(err);
-    alert("Microphone access error: " + err.message);
-    isShadowing = false;
-    setStatus("Error", false);
-    document.getElementById('btn-start').disabled = false;
-  }
-}
-
-function stopShadowing() {
-  if (!isShadowing) return;
-  
-  // Stop everything
-  if (recognition) recognition.stop();
-  if (mediaRecorder) mediaRecorder.stop();
-  
-  // Wait for recorder to finalize chunks
-  mediaRecorder.onstop = async () => {
-    setStatus("Processing results...", true);
-    
-    // Create Blob for upload
-    const blob = new Blob(audioChunks, { 'type' : 'audio/webm;codecs=opus' });
-    
-    // Calculate Score
-    const refText = currentTask.refText;
-    const userText = finalTranscript.trim();
-    const similarity = calculateSimilarity(refText, userText);
-    const score = Math.round(similarity * 100);
-    
-    // Show Result
-    document.getElementById('result-area').style.display = 'block';
-    document.getElementById('score-val').innerText = score;
-    document.getElementById('transcript-diff').innerText = `Ref: ${refText}\nYou: ${userText}`;
-    
-    // Prepare Upload
-    uploadData(blob, score, userText);
-    
-    // Cleanup tracks
-    mediaRecorder.stream.getTracks().forEach(track => track.stop());
-    isShadowing = false;
-    document.getElementById('btn-start').disabled = false;
-    setStatus("Finished", false);
-  };
-}
-
-// --- Upload & Naming ---
-function uploadData(audioBlob, score, userTranscript) {
-  const reader = new FileReader();
-  reader.readAsDataURL(audioBlob); 
-  reader.onloadend = function() {
-    const base64Audio = reader.result.split(',')[1];
-    
-    // Filename Construction
-    // [Book]_[Sheet]_[TaskID]_[UserID]_[Score]_[YYMMDD]_[HHMMSS]
-    const now = new Date();
-    const dateStr = formatDate(now, 'YYMMDD');
-    const timeStr = formatDate(now, 'HHMMSS');
-    
-    const book = document.getElementById('sel-book').value;
-    const unit = document.getElementById('sel-unit').value;
-    
-    const filenameBase = `${book}_${unit}_${currentTask.id}_${currentUser.id4}_${score}_${dateStr}_${timeStr}`;
-    
-    const payload = {
-      filenameBase: filenameBase,
-      audioBase64: base64Audio,
-      jsonStr: JSON.stringify({
-        book: book,
-        unit: unit,
-        taskId: currentTask.id,
-        userId: currentUser.id4,
-        score: score,
-        refText: currentTask.refText,
-        userText: userTranscript,
-        timestamp: now.toISOString(),
-        filenameBase: filenameBase
-      })
-    };
-    
-    google.script.run.withSuccessHandler(() => {
-      console.log("Upload Complete");
-    }).saveSubmission(payload);
-  };
-}
-
-// --- Utilities ---
-function setStatus(msg, isLoading) {
-  document.getElementById('status-area').innerText = msg;
-  document.getElementById('loader').style.display = isLoading ? 'block' : 'none';
-}
-
-function formatDate(date, format) {
-  const pad = (n) => (n < 10 ? '0' + n : n);
-  const yy = date.getFullYear().toString().substr(-2);
-  const mm = pad(date.getMonth() + 1);
-  const dd = pad(date.getDate());
-  const hh = pad(date.getHours());
-  const min = pad(date.getMinutes());
-  const ss = pad(date.getSeconds());
-  
-  if (format === 'YYMMDD') return yy + mm + dd;
-  if (format === 'HHMMSS') return hh + min + ss;
-  return '';
-}
-
-// Simple Dice Coefficient for similarity (Lightweight)
-function calculateSimilarity(str1, str2) {
-  const s1 = str1.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const s2 = str2.toLowerCase().replace(/[^a-z0-9]/g, '');
-  
-  if (s1.length === 0 && s2.length === 0) return 1;
-  if (s1.length === 0 || s2.length === 0) return 0;
-
-  const bigrams = (str) => {
-    const res = [];
-    for (let i = 0; i < str.length - 1; i++) res.push(str.slice(i, i + 2));
-    return res;
-  };
-
-  const bg1 = bigrams(s1);
-  const bg2 = bigrams(s2);
-  
-  let intersection = 0;
-  // Copy to avoid modifying original array during check
-  const bg2Copy = [...bg2]; 
-  
-  bg1.forEach(token => {
-    const idx = bg2Copy.indexOf(token);
-    if (idx !== -1) {
-      intersection++;
-      bg2Copy.splice(idx, 1);
     }
-  });
-  
-  return (2 * intersection) / (bg1.length + bg2.length);
-}
-</script>
+
+    function onUnitChange() {
+      const book = document.getElementById('sel-book').value;
+      const unit = document.getElementById('sel-unit').value;
+      const taskSel = document.getElementById('sel-task');
+      taskSel.innerHTML = '<option value="">Select Task</option>';
+      taskSel.disabled = !unit;
+      document.getElementById('btn-start').disabled = true;
+
+      if (unit) {
+        const tasks = materials[book][unit];
+        tasks.forEach(t => {
+          let opt = document.createElement('option');
+          opt.value = JSON.stringify(t); // Store whole object
+          opt.text = `No.${t.id}: ${t.title}`;
+          taskSel.add(opt);
+        });
+      }
+    }
+
+    function onTaskChange() {
+      const val = document.getElementById('sel-task').value;
+      const btn = document.getElementById('btn-start');
+
+      if (val) {
+        currentTask = JSON.parse(val);
+
+        // Check for Reading Mode (No Audio)
+        if (!currentTask.audioName) {
+          isReadingMode = true;
+          document.getElementById('reading-mode-area').style.display = 'block';
+          document.getElementById('reading-text-area').innerText = currentTask.displayText || currentTask.refText;
+          document.getElementById('btn-start').innerHTML = "Start Reading";
+          document.getElementById('btn-start').disabled = false;
+          document.getElementById('sel-speed').disabled = true; // No speed for reading
+          setStatus('Reading Mode', false);
+        } else {
+          isReadingMode = false;
+          document.getElementById('reading-mode-area').style.display = 'none';
+          document.getElementById('btn-start').innerHTML = "Start Shadowing";
+          document.getElementById('btn-start').disabled = true; // Wait for audio
+          document.getElementById('sel-speed').disabled = false;
+          downloadAudio(currentTask.audioName);
+        }
+      } else {
+        document.getElementById('btn-start').disabled = true;
+      }
+    }
+
+    function scrollRead(offset) {
+      const el = document.getElementById('reading-text-area');
+      el.scrollTop += offset;
+    }
+
+    function finishReading() {
+      stopShadowing(true);
+    }
+
+    // --- Audio Loading ---
+    function downloadAudio(filename) {
+      setStatus('Downloading audio...', true);
+      google.script.run.withSuccessHandler(res => {
+        // Convert Base64 to Blob URL for caching in browser memory
+        const byteCharacters = atob(res.base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: res.mime }); // Opus or MP3
+
+        if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+        audioBlobUrl = URL.createObjectURL(blob);
+
+        const audioEl = document.getElementById('audio-player');
+        audioEl.src = audioBlobUrl;
+
+        setStatus('Ready to Start', false);
+        document.getElementById('btn-start').disabled = false;
+      }).getAudioData(filename);
+    }
+
+    // --- Shadowing Logic ---
+    async function setupAudioContext(stream) {
+      if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+      microphone = audioContext.createMediaStreamSource(stream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+
+      // Gain Node for Mic Volume Logic if needed (digital gain)
+      gainNode = audioContext.createGain();
+      const gainVal = parseFloat(document.getElementById('mic-gain').value);
+      gainNode.gain.value = gainVal;
+
+      microphone.connect(gainNode);
+      gainNode.connect(analyser); // Do not connect to destination to avoid feedback
+
+      drawVolume();
+    }
+
+    function drawVolume() {
+      if (!isShadowing) return;
+      requestAnimationFrame(drawVolume);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      analyser.getByteFrequencyData(dataArray);
+
+      // Average volume
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+      let average = sum / bufferLength;
+
+      // 0-255 -> 0-100%
+      let vol = (average / 100) * 100;
+      if (vol > 100) vol = 100;
+
+      const bar = document.getElementById('volume-bar');
+      bar.style.width = vol + '%';
+
+      // Colors
+      if (vol > 90) { bar.className = 'volume-bar clip'; }
+      else if (vol < 10) { bar.className = 'volume-bar warning'; }
+      else { bar.className = 'volume-bar'; }
+
+      // Updating Gain dynamically if slider moves
+      const currentGain = parseFloat(document.getElementById('mic-gain').value);
+      if (gainNode && Math.abs(gainNode.gain.value - currentGain) > 0.1) {
+        gainNode.gain.setValueAtTime(currentGain, audioContext.currentTime);
+      }
+    }
+
+    async function startShadowing() {
+      if (isShadowing) return;
+      isShadowing = true;
+      finalTranscript = '';
+      audioChunks = [];
+
+      const audioEl = document.getElementById('audio-player');
+      const speed = parseFloat(document.getElementById('sel-speed').value);
+      audioEl.playbackRate = speed;
+
+      // UI Update
+      document.getElementById('btn-start').disabled = true;
+      document.getElementById('btn-stop').disabled = false;
+      document.getElementById('result-area').style.display = 'none';
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        });
+
+        // Audio Context (Volume)
+        setupAudioContext(stream);
+
+        // Recorder Init
+        const options = { mimeType: 'audio/webm;codecs=opus' };
+        mediaRecorder = new MediaRecorder(stream, options);
+
+        mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+
+        // STT Init
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        const accent = document.getElementById('sel-accent').value;
+        recognition.lang = accent;
+        recognition.interimResults = false;
+        recognition.continuous = true;
+
+        recognition.onresult = event => {
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript + ' ';
+            }
+          }
+        };
+
+        // Start Logic
+        if (isReadingMode) {
+          setStatus("Reading... (Recording)", true);
+          mediaRecorder.start();
+          recognition.start();
+        } else {
+          // Shadowing Mode
+          setStatus("Wait 3s... (Get Ready)", true);
+          mediaRecorder.start();
+          recognition.start();
+
+          setTimeout(() => {
+            setStatus("Shadowing! (Listening & Recording)", true);
+            audioEl.play();
+
+            audioEl.onended = () => {
+              setStatus("Audio Ended. Waiting 3s...", true);
+              setTimeout(() => { stopShadowing(true); }, 3000); // Auto submit
+            };
+          }, 3000);
+        }
+
+      } catch (err) {
+        console.error(err);
+        alert("Microphone error: " + err.message);
+        isShadowing = false;
+        setStatus("Error", false);
+        document.getElementById('btn-start').disabled = false;
+      }
+    }
+
+    function stopShadowing(isSubmit = true) {
+      if (!isShadowing) return;
+
+      // Stop STT & Audio
+      if (recognition) recognition.stop();
+      const audioEl = document.getElementById('audio-player');
+      audioEl.pause();
+      audioEl.currentTime = 0;
+
+      // Stop Recorder
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+
+        mediaRecorder.onstop = async () => {
+          // Stop Tracks
+          mediaRecorder.stream.getTracks().forEach(track => track.stop());
+          isShadowing = false;
+          document.getElementById('btn-start').disabled = false;
+          document.getElementById('btn-stop').disabled = true;
+
+          if (!isSubmit) {
+            setStatus("Stopped.", false);
+            return; // Exit without processing
+          }
+
+          setStatus("Processing results...", true);
+
+          const blob = new Blob(audioChunks, { 'type': 'audio/webm;codecs=opus' });
+
+          // --- Scoring Logic ---
+          const refText = currentTask.refText;
+          const userText = finalTranscript.trim();
+
+          // 1. Reading Score (Base)
+          const sim = calculateSimilarity(refText, userText);
+          const readingScore = Math.round(sim * 100);
+
+          // 2. Shadowing Score (Correction)
+          // Score = Reading Score * (1 + (Speed - 1) / 2)
+          const speed = parseFloat(document.getElementById('sel-speed').value);
+          // If Reading Mode (No Speed), treat as 1.0
+          const usedSpeed = isReadingMode ? 1.0 : speed;
+
+          let correction = 1.0 + (usedSpeed - 1.0) / 2.0;
+          let shadowingScore = Math.round(readingScore * correction);
+          if (shadowingScore > 100) shadowingScore = 100;
+
+          // Display Results
+          document.getElementById('result-area').style.display = 'block';
+          document.getElementById('score-val').innerText = readingScore;
+          document.getElementById('shadow-score-val').innerText = shadowingScore;
+
+          // Visual Comparison
+          compareAndVisualize(refText, userText);
+
+          // Upload
+          uploadData(blob, shadowingScore, readingScore, usedSpeed, userText);
+          setStatus("Finished", false);
+        };
+      } else {
+        isShadowing = false;
+      }
+    }
+
+    // --- Visual Comparison Logic (Simple Diff) ---
+    function compareAndVisualize(ref, user) {
+      const refWords = ref.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w);
+      const userWords = user.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w);
+
+      // Simple LCS based Diff would be ideal, but for quick implementation:
+      // We will just highlight words in User not in Ref (Blue)
+      // And words in Ref not in User (Red)
+      // This is a "Bag of Words" check for highlighting, but we want order.
+
+      // Let's use a simple linear alignment heuristic.
+
+      let userHTML = "";
+      let refHTML = "";
+      let missingWords = [];
+
+      // We will attempt to align. This is complex without a library.
+      // Fallback: Display raw with highlights based on inclusion.
+
+      // Better Approach: Iterate Reference. If word found in User (consumed), Green/Black. Else Red.
+      // Iterate User. If word found in Ref (closest), Green/Black. Else Blue.
+
+      // To simplify: Just simple difference.
+
+      const refDisp = ref.split(' '); // Keep original case/punctuation for display if possible, but matching is hard.
+      // Let's just use the cleaned arrays for logic, map back if we can, or just display cleaned.
+      // Let's display cleaned for clarity of errors.
+
+      let rIdx = 0;
+      let uIdx = 0;
+
+      // 1. Generate Ref HTML (Red for missing)
+      // We search for each ref key in user transcript close to current position
+      refWords.forEach(rWord => {
+        // Look ahead in userWords
+        let found = false;
+        for (let k = 0; k < 5; k++) { // Look ahead 5 words
+          if (userWords[uIdx + k] === rWord) {
+            found = true;
+            // Consume
+            uIdx += (k + 1);
+            break;
+          }
+        }
+
+        if (found) {
+          refHTML += `<span>${rWord} </span>`;
+        } else {
+          refHTML += `<span class="highlight-missing">${rWord} </span>`;
+          missingWords.push(rWord);
+        }
+      });
+
+      // Reset for User HTML (Blue for added)
+      uIdx = 0;
+      rIdx = 0;
+      let userHTMLTemp = [];
+
+      userWords.forEach(uWord => {
+        // Is this word in Ref close by?
+        let found = false;
+        for (let k = 0; k < 5; k++) { // Look ahead
+          if (refWords[rIdx + k] === uWord) {
+            found = true;
+            rIdx += (k + 1);
+            break;
+          }
+        }
+
+        if (found) {
+          userHTMLTemp.push(`<span>${uWord}</span>`);
+        } else {
+          userHTMLTemp.push(`<span class="highlight-added">${uWord}</span>`);
+        }
+      });
+      userHTML = userHTMLTemp.join(' ');
+
+      document.getElementById('user-stt-display').innerHTML = userHTML;
+      document.getElementById('ref-text-display').innerHTML = refHTML;
+
+      // Practice Items
+      const pArea = document.getElementById('practice-items');
+      pArea.innerHTML = '';
+      missingWords.forEach(word => {
+        const d = document.createElement('span');
+        d.className = 'practice-item';
+        d.innerHTML = `${word} <button class="speak-btn" onclick="playTTS('${word}')">🔊</button>`;
+        pArea.appendChild(d);
+      });
+    }
+
+    function playTTS(text) {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = document.getElementById('sel-accent').value;
+      window.speechSynthesis.speak(u);
+    }
+
+    // --- Upload & Naming ---
+    function uploadData(audioBlob, shadowScore, readScore, speed, userTranscript) {
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = function () {
+        const base64Audio = reader.result.split(',')[1];
+
+        // Filename Construction
+        const now = new Date();
+        const dateStr = formatDate(now, 'YYMMDD');
+        const timeStr = formatDate(now, 'HHMMSS');
+
+        const book = document.getElementById('sel-book').value;
+        const unit = document.getElementById('sel-unit').value;
+
+        const filenameBase = `${book}_${unit}_${currentTask.id}_${currentUser.id4}_${shadowScore}_${dateStr}_${timeStr}`;
+
+        const payload = {
+          filenameBase: filenameBase,
+          audioBase64: base64Audio,
+          reading_score: readScore,
+          shadowing_score: shadowScore,
+          playback_speed: speed,
+          jsonStr: JSON.stringify({
+            book: book,
+            unit: unit,
+            taskId: currentTask.id,
+            userId: currentUser.id4,
+            reading_score: readScore,
+            shadowing_score: shadowScore,
+            playback_speed: speed,
+            refText: currentTask.refText,
+            userText: userTranscript,
+            timestamp: now.toISOString(),
+            filenameBase: filenameBase
+          })
+        };
+
+        google.script.run.withSuccessHandler(() => {
+          console.log("Upload Complete");
+        }).saveSubmission(payload);
+      };
+    }
+
+    // --- Utilities ---
+    function setStatus(msg, isLoading) {
+      document.getElementById('status-area').innerText = msg;
+      document.getElementById('loader').style.display = isLoading ? 'block' : 'none';
+    }
+
+    function formatDate(date, format) {
+      const pad = (n) => (n < 10 ? '0' + n : n);
+      const yy = date.getFullYear().toString().substr(-2);
+      const mm = pad(date.getMonth() + 1);
+      const dd = pad(date.getDate());
+      const hh = pad(date.getHours());
+      const min = pad(date.getMinutes());
+      const ss = pad(date.getSeconds());
+
+      if (format === 'YYMMDD') return yy + mm + dd;
+      if (format === 'HHMMSS') return hh + min + ss;
+      return '';
+    }
+
+    // Simple Dice Coefficient for similarity (Lightweight)
+    function calculateSimilarity(str1, str2) {
+      const s1 = str1.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const s2 = str2.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      if (s1.length === 0 && s2.length === 0) return 1;
+      if (s1.length === 0 || s2.length === 0) return 0;
+
+      const bigrams = (str) => {
+        const res = [];
+        for (let i = 0; i < str.length - 1; i++) res.push(str.slice(i, i + 2));
+        return res;
+      };
+
+      const bg1 = bigrams(s1);
+      const bg2 = bigrams(s2);
+
+      let intersection = 0;
+      // Copy to avoid modifying original array during check
+      const bg2Copy = [...bg2];
+
+      bg1.forEach(token => {
+        const idx = bg2Copy.indexOf(token);
+        if (idx !== -1) {
+          intersection++;
+          bg2Copy.splice(idx, 1);
+        }
+      });
+
+      return (2 * intersection) / (bg1.length + bg2.length);
+    }
+  </script>
 
 </body>
+
 </html>
