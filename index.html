@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Roboto', sans-serif; padding: 20px; background-color: #f5f5f5; color: #333; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    
+    /* Control Panel */
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+    select, button { padding: 10px; border-radius: 4px; border: 1px solid #ccc; width: 100%; font-size: 16px; }
+    button { background-color: #3498db; color: white; border: none; cursor: pointer; transition: background 0.3s; }
+    button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+    button.record-btn { background-color: #e74c3c; }
+    
+    /* Status & Loader */
+    #status-area { margin-top: 15px; font-weight: bold; text-align: center; height: 24px; color: #e67e22; }
+    #loader { display: none; width: 100%; height: 4px; background-color: #f3f3f3; margin-top: 10px; overflow: hidden; }
+    #loader-bar { width: 50%; height: 100%; background-color: #3498db; animation: loading 1s infinite ease-in-out; }
+    @keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+
+    /* Results */
+    #result-area { margin-top: 20px; padding: 15px; background: #fafafa; border: 1px solid #eee; display: none; }
+    .score-display { font-size: 1.5em; font-weight: bold; color: #27ae60; }
+    .diff-text { white-space: pre-wrap; margin-top: 10px; font-family: monospace; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h2>Shadowing Practice</h2>
+    <div id="user-display">Loading User...</div>
+  </div>
+
+  <div class="controls">
+    <select id="sel-book" onchange="onBookChange()">
+      <option value="">Select Book</option>
+    </select>
+    <select id="sel-unit" onchange="onUnitChange()" disabled>
+      <option value="">Select Unit</option>
+    </select>
+  </div>
+  
+  <div class="controls">
+    <select id="sel-task" onchange="onTaskChange()" disabled>
+      <option value="">Select Task</option>
+    </select>
+    <select id="sel-speed">
+      <option value="0.6">Speed: x0.6</option>
+      <option value="0.8">Speed: x0.8</option>
+      <option value="1.0" selected>Speed: x1.0 (Normal)</option>
+      <option value="1.2">Speed: x1.2</option>
+    </select>
+  </div>
+
+  <div style="text-align:center; margin-top: 20px;">
+    <button id="btn-start" onclick="startShadowing()" disabled style="width: 200px; height: 50px; font-size: 18px;">
+      Start Shadowing
+    </button>
+  </div>
+
+  <div id="loader"><div id="loader-bar"></div></div>
+  <div id="status-area">Ready</div>
+
+  <audio id="audio-player" style="display:none;"></audio>
+
+  <div id="result-area">
+    <div>Score: <span id="score-val" class="score-display">--</span>%</div>
+    <div style="font-size:0.9em; color:#777;">Wait for audio end... Analyzing...</div>
+    <div id="transcript-diff" class="diff-text"></div>
+  </div>
+</div>
+
+<script>
+// --- Global Variables ---
+let currentUser = { name: '', id4: '' };
+let materials = {};
+let currentTask = null;
+let audioBlobUrl = null;
+let recognition = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let finalTranscript = '';
+let isShadowing = false;
+
+// --- Initialization ---
+window.onload = function() {
+  google.script.run.withSuccessHandler(user => {
+    currentUser = user;
+    document.getElementById('user-display').innerText = `${user.name} (${user.id4})`;
+    if(!user.isAuthorized) alert("Unregistered User. Please contact admin.");
+    
+    // Load Materials
+    loadMaterials();
+  }).getUserInfo();
+};
+
+function loadMaterials() {
+  google.script.run.withSuccessHandler(data => {
+    materials = data;
+    const bookSel = document.getElementById('sel-book');
+    for (let book in materials) {
+      let opt = document.createElement('option');
+      opt.value = book;
+      opt.text = book;
+      bookSel.add(opt);
+    }
+  }).getMaterialsStructure();
+}
+
+// --- Dropdown Logic ---
+function onBookChange() {
+  const book = document.getElementById('sel-book').value;
+  const unitSel = document.getElementById('sel-unit');
+  unitSel.innerHTML = '<option value="">Select Unit</option>';
+  unitSel.disabled = !book;
+  document.getElementById('sel-task').innerHTML = '<option value="">Select Task</option>';
+  document.getElementById('sel-task').disabled = true;
+  document.getElementById('btn-start').disabled = true;
+
+  if (book) {
+    for (let unit in materials[book]) {
+      let opt = document.createElement('option');
+      opt.value = unit;
+      opt.text = unit;
+      unitSel.add(opt);
+    }
+  }
+}
+
+function onUnitChange() {
+  const book = document.getElementById('sel-book').value;
+  const unit = document.getElementById('sel-unit').value;
+  const taskSel = document.getElementById('sel-task');
+  taskSel.innerHTML = '<option value="">Select Task</option>';
+  taskSel.disabled = !unit;
+  document.getElementById('btn-start').disabled = true;
+
+  if (unit) {
+    const tasks = materials[book][unit];
+    tasks.forEach(t => {
+      let opt = document.createElement('option');
+      opt.value = JSON.stringify(t); // Store whole object
+      opt.text = `No.${t.id}: ${t.title}`;
+      taskSel.add(opt);
+    });
+  }
+}
+
+function onTaskChange() {
+  const val = document.getElementById('sel-task').value;
+  const btn = document.getElementById('btn-start');
+  
+  if (val) {
+    currentTask = JSON.parse(val);
+    btn.disabled = true; // Disable until audio loads
+    downloadAudio(currentTask.audioName);
+  } else {
+    btn.disabled = true;
+  }
+}
+
+// --- Audio Loading ---
+function downloadAudio(filename) {
+  setStatus('Downloading audio...', true);
+  google.script.run.withSuccessHandler(res => {
+    // Convert Base64 to Blob URL for caching in browser memory
+    const byteCharacters = atob(res.base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], {type: res.mime}); // Opus or MP3
+    
+    if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+    audioBlobUrl = URL.createObjectURL(blob);
+    
+    const audioEl = document.getElementById('audio-player');
+    audioEl.src = audioBlobUrl;
+    
+    setStatus('Ready to Start', false);
+    document.getElementById('btn-start').disabled = false;
+  }).getAudioData(filename);
+}
+
+// --- Shadowing Logic (The Core) ---
+async function startShadowing() {
+  if (isShadowing) return;
+  isShadowing = true;
+  finalTranscript = '';
+  audioChunks = [];
+  
+  const audioEl = document.getElementById('audio-player');
+  const speed = parseFloat(document.getElementById('sel-speed').value);
+  audioEl.playbackRate = speed;
+  
+  // UI Update
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('result-area').style.display = 'none';
+  
+  // 1. Setup Recording & STT
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        sampleRate: 24000 // Requested
+      }
+    });
+
+    // Recorder Init (Opus/WebM)
+    const options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 48000 };
+    mediaRecorder = new MediaRecorder(stream, options);
+    
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    // Speech Recognition Init
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'en-US'; // Adjust based on content language
+    recognition.interimResults = false;
+    recognition.continuous = true;
+    
+    recognition.onresult = event => {
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        }
+      }
+    };
+    
+    // 2. Start Process (3s Delay -> Play)
+    setStatus("Wait 3s... (Get Ready)", true);
+    
+    // Start Recording & STT BEFORE Audio plays
+    mediaRecorder.start();
+    recognition.start();
+
+    setTimeout(() => {
+      setStatus("Shadowing! (Listening & Recording)", true);
+      audioEl.play();
+      
+      // Handle Audio End
+      audioEl.onended = () => {
+        setStatus("Audio Ended. Waiting 3s...", true);
+        setTimeout(() => {
+          stopShadowing();
+        }, 3000); // 3s Post-roll
+      };
+      
+    }, 3000); // 3s Pre-roll
+
+  } catch (err) {
+    console.error(err);
+    alert("Microphone access error: " + err.message);
+    isShadowing = false;
+    setStatus("Error", false);
+    document.getElementById('btn-start').disabled = false;
+  }
+}
+
+function stopShadowing() {
+  if (!isShadowing) return;
+  
+  // Stop everything
+  if (recognition) recognition.stop();
+  if (mediaRecorder) mediaRecorder.stop();
+  
+  // Wait for recorder to finalize chunks
+  mediaRecorder.onstop = async () => {
+    setStatus("Processing results...", true);
+    
+    // Create Blob for upload
+    const blob = new Blob(audioChunks, { 'type' : 'audio/webm;codecs=opus' });
+    
+    // Calculate Score
+    const refText = currentTask.refText;
+    const userText = finalTranscript.trim();
+    const similarity = calculateSimilarity(refText, userText);
+    const score = Math.round(similarity * 100);
+    
+    // Show Result
+    document.getElementById('result-area').style.display = 'block';
+    document.getElementById('score-val').innerText = score;
+    document.getElementById('transcript-diff').innerText = `Ref: ${refText}\nYou: ${userText}`;
+    
+    // Prepare Upload
+    uploadData(blob, score, userText);
+    
+    // Cleanup tracks
+    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    isShadowing = false;
+    document.getElementById('btn-start').disabled = false;
+    setStatus("Finished", false);
+  };
+}
+
+// --- Upload & Naming ---
+function uploadData(audioBlob, score, userTranscript) {
+  const reader = new FileReader();
+  reader.readAsDataURL(audioBlob); 
+  reader.onloadend = function() {
+    const base64Audio = reader.result.split(',')[1];
+    
+    // Filename Construction
+    // [Book]_[Sheet]_[TaskID]_[UserID]_[Score]_[YYMMDD]_[HHMMSS]
+    const now = new Date();
+    const dateStr = formatDate(now, 'YYMMDD');
+    const timeStr = formatDate(now, 'HHMMSS');
+    
+    const book = document.getElementById('sel-book').value;
+    const unit = document.getElementById('sel-unit').value;
+    
+    const filenameBase = `${book}_${unit}_${currentTask.id}_${currentUser.id4}_${score}_${dateStr}_${timeStr}`;
+    
+    const payload = {
+      filenameBase: filenameBase,
+      audioBase64: base64Audio,
+      jsonStr: JSON.stringify({
+        book: book,
+        unit: unit,
+        taskId: currentTask.id,
+        userId: currentUser.id4,
+        score: score,
+        refText: currentTask.refText,
+        userText: userTranscript,
+        timestamp: now.toISOString(),
+        filenameBase: filenameBase
+      })
+    };
+    
+    google.script.run.withSuccessHandler(() => {
+      console.log("Upload Complete");
+    }).saveSubmission(payload);
+  };
+}
+
+// --- Utilities ---
+function setStatus(msg, isLoading) {
+  document.getElementById('status-area').innerText = msg;
+  document.getElementById('loader').style.display = isLoading ? 'block' : 'none';
+}
+
+function formatDate(date, format) {
+  const pad = (n) => (n < 10 ? '0' + n : n);
+  const yy = date.getFullYear().toString().substr(-2);
+  const mm = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  const ss = pad(date.getSeconds());
+  
+  if (format === 'YYMMDD') return yy + mm + dd;
+  if (format === 'HHMMSS') return hh + min + ss;
+  return '';
+}
+
+// Simple Dice Coefficient for similarity (Lightweight)
+function calculateSimilarity(str1, str2) {
+  const s1 = str1.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const s2 = str2.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  if (s1.length === 0 && s2.length === 0) return 1;
+  if (s1.length === 0 || s2.length === 0) return 0;
+
+  const bigrams = (str) => {
+    const res = [];
+    for (let i = 0; i < str.length - 1; i++) res.push(str.slice(i, i + 2));
+    return res;
+  };
+
+  const bg1 = bigrams(s1);
+  const bg2 = bigrams(s2);
+  
+  let intersection = 0;
+  // Copy to avoid modifying original array during check
+  const bg2Copy = [...bg2]; 
+  
+  bg1.forEach(token => {
+    const idx = bg2Copy.indexOf(token);
+    if (idx !== -1) {
+      intersection++;
+      bg2Copy.splice(idx, 1);
+    }
+  });
+  
+  return (2 * intersection) / (bg1.length + bg2.length);
+}
+</script>
+
+</body>
+</html>
