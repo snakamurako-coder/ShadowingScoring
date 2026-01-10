@@ -219,8 +219,8 @@
       border: 1px solid #ccc;
       padding: 15px;
       background: #fff;
-      font-size: 18px;
-      line-height: 1.6;
+      font-size: 24px;
+      line-height: 3.2;
     }
 
     .scroll-btn {
@@ -229,7 +229,7 @@
       background: #bdc3c7;
       color: #333;
       font-size: 12px;
-      padding: 5px;
+      padding: 15px;
     }
   </style>
 </head>
@@ -288,11 +288,15 @@
       </div>
     </div>
 
-    <div style="text-align:center; margin-top: 20px; display:flex; justify-content: center; gap: 20px;">
+    <div id="button-area" style="text-align:center; margin-top: 20px; display:flex; justify-content: center; gap: 20px;">
       <button id="btn-start" onclick="startShadowing()" disabled style="width: 180px; height: 50px; font-size: 18px;">
         Start Shadowing
       </button>
-      <button id="btn-stop" onclick="stopShadowing(false)" disabled
+      <button id="btn-finish-reading" onclick="finishReading()" disabled
+        style="width: 150px; height: 50px; font-size: 18px; background-color: #27ae60; display: none;">
+        Finish Reading
+      </button>
+      <button id="btn-stop" onclick="stopShadowingWithConfirm()" disabled
         style="width: 100px; height: 50px; font-size: 18px; background-color: #95a5a6;">
         Stop
       </button>
@@ -309,9 +313,6 @@
       <button class="scroll-btn" onclick="scrollRead(-50)">▲ Scroll Up</button>
       <div id="reading-text-area"></div>
       <button class="scroll-btn" onclick="scrollRead(50)">▼ Scroll Down</button>
-      <div style="text-align:center; margin-top:10px;">
-        <button onclick="finishReading()" style="background:#27ae60;">Finish Reading</button>
-      </div>
     </div>
 
     <div id="result-area">
@@ -444,14 +445,20 @@
           document.getElementById('reading-text-area').innerText = currentTask.displayText || currentTask.refText;
           document.getElementById('btn-start').innerHTML = "Start Reading";
           document.getElementById('btn-start').disabled = false;
+          document.getElementById('btn-finish-reading').style.display = 'none'; // Hide until recording starts
           document.getElementById('sel-speed').disabled = true; // No speed for reading
+          // Adjust button area spacing for reading mode
+          document.getElementById('button-area').style.gap = '20px';
           setStatus('Reading Mode', false);
         } else {
           isReadingMode = false;
           document.getElementById('reading-mode-area').style.display = 'none';
           document.getElementById('btn-start').innerHTML = "Start Shadowing";
           document.getElementById('btn-start').disabled = true; // Wait for audio
+          document.getElementById('btn-finish-reading').style.display = 'none'; // Hide in shadowing mode
           document.getElementById('sel-speed').disabled = false;
+          // Reset button area spacing for shadowing mode
+          document.getElementById('button-area').style.gap = '20px';
           downloadAudio(currentTask.audioName);
         }
       } else {
@@ -465,6 +472,7 @@
     }
 
     function finishReading() {
+      // Finish Reading button - submit the recording
       stopShadowing(true);
     }
 
@@ -556,6 +564,12 @@
       // UI Update
       document.getElementById('btn-start').disabled = true;
       document.getElementById('btn-stop').disabled = false;
+      if (isReadingMode) {
+        document.getElementById('btn-finish-reading').style.display = 'inline-block';
+        document.getElementById('btn-finish-reading').disabled = false;
+        // Adjust spacing: Finish Reading and Stop buttons with wider gap
+        document.getElementById('button-area').style.gap = '60px';
+      }
       document.getElementById('result-area').style.display = 'none';
 
       try {
@@ -625,6 +639,19 @@
       }
     }
 
+    // Stop button with confirmation dialog
+    function stopShadowingWithConfirm() {
+      if (!isShadowing) return;
+      
+      const confirmed = confirm("途中までの記録は、文字起こし・音声ともにデータは削除されてしまいますが、良いですか？\n\nはい（OK）: 削除して停止\nいいえ（キャンセル）: 続行");
+      
+      if (confirmed) {
+        // はい = 削除して停止
+        stopShadowing(false);
+      }
+      // いいえ = 続行（何もしない）
+    }
+
     function stopShadowing(isSubmit = true) {
       if (!isShadowing) return;
 
@@ -645,6 +672,12 @@
           isShadowing = false;
           document.getElementById('btn-start').disabled = false;
           document.getElementById('btn-stop').disabled = true;
+          if (isReadingMode) {
+            document.getElementById('btn-finish-reading').style.display = 'none';
+            document.getElementById('btn-finish-reading').disabled = true;
+            // Reset button spacing
+            document.getElementById('button-area').style.gap = '20px';
+          }
 
           if (!isSubmit) {
             setStatus("Stopped.", false);
