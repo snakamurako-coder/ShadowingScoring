@@ -109,6 +109,50 @@
       font-size: 1.5em;
       font-weight: bold;
       color: #27ae60;
+      position: relative;
+      display: inline-block;
+      padding: 0 10px;
+    }
+
+    .score-container {
+      position: relative;
+      display: inline-block;
+      margin: 0 10px;
+    }
+
+    .score-arch {
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 60px;
+      height: 30px;
+      border: 3px solid #27ae60;
+      border-bottom: none;
+      border-radius: 60px 60px 0 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    @keyframes archDraw {
+      0% {
+        opacity: 0;
+        transform: translateX(-50%) scale(0.3) translateY(10px);
+      }
+      50% {
+        opacity: 0.8;
+      }
+      100% {
+        opacity: 1;
+        transform: translateX(-50%) scale(1) translateY(0);
+      }
+    }
+
+    .score-formula {
+      font-size: 0.85em;
+      color: #666;
+      margin-top: 5px;
+      font-family: 'Courier New', monospace;
     }
 
     .diff-text {
@@ -316,11 +360,20 @@
     </div>
 
     <div id="result-area">
-      <div>
-        Reading Score: <span id="score-val" class="score-display">--</span>% |
-        Shadowing Score: <span id="shadow-score-val" class="score-display">--</span>%
+      <div style="margin-bottom: 15px;">
+        <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+          <div class="score-container">
+            <div class="score-arch" id="reading-arch"></div>
+            Reading Score: <span id="score-val" class="score-display">--</span>
+            <div class="score-formula" id="reading-formula"></div>
+          </div>
+          <div class="score-container" id="shadowing-score-container" style="display: none;">
+            <div class="score-arch" id="shadowing-arch"></div>
+            Shadowing Score: <span id="shadow-score-val" class="score-display">--</span>
+            <div class="score-formula" id="shadowing-formula"></div>
+          </div>
+        </div>
       </div>
-      <div style="font-size:0.9em; color:#777;">Wait for audio end... Analyzing...</div>
 
       <div class="stt-comparison">
         <div class="stt-box">
@@ -710,8 +763,21 @@
 
           // Display Results
           document.getElementById('result-area').style.display = 'block';
-          document.getElementById('score-val').innerText = readingScore;
-          document.getElementById('shadow-score-val').innerText = shadowingScore;
+          
+          // Display Reading Score with animation and formula
+          const readingFormula = `音読スコア = max(0, round(100 × (1 - WER))) = max(0, round(100 × (1 - ${rate.toFixed(3)}))) = ${readingScore}`;
+          displayScoreWithAnimation('score-val', readingScore, 'reading-arch', 'reading-formula', 
+            readingFormula, false);
+          
+          // Display Shadowing Score only if not in reading mode
+          if (!isReadingMode) {
+            document.getElementById('shadowing-score-container').style.display = 'block';
+            const shadowingFormula = `シャドーイングスコア = min(100, 音読スコア × (1 + (再生速度 - 1) / 2)) = min(100, ${readingScore} × ${correctionFactor.toFixed(2)}) = ${shadowingScore}`;
+            displayScoreWithAnimation('shadow-score-val', shadowingScore, 'shadowing-arch', 'shadowing-formula',
+              shadowingFormula, true);
+          } else {
+            document.getElementById('shadowing-score-container').style.display = 'none';
+          }
 
           // Visual Comparison
           compareAndVisualize(refText, userText);
@@ -927,6 +993,69 @@
       const u = new SpeechSynthesisUtterance(text);
       u.lang = document.getElementById('sel-accent').value;
       window.speechSynthesis.speak(u);
+    }
+
+    // Display score with arch animation and color based on score
+    function displayScoreWithAnimation(scoreElementId, score, archElementId, formulaElementId, formulaText, isShadowing) {
+      const scoreElement = document.getElementById(scoreElementId);
+      const archElement = document.getElementById(archElementId);
+      const formulaElement = document.getElementById(formulaElementId);
+      
+      // Set formula text
+      formulaElement.textContent = formulaText;
+      
+      // Determine color based on score
+      let color;
+      if (score >= 90) {
+        color = '#27ae60'; // Green
+      } else if (score >= 70) {
+        color = '#f39c12'; // Orange
+      } else if (score >= 50) {
+        color = '#e67e22'; // Dark orange
+      } else {
+        color = '#e74c3c'; // Red
+      }
+      
+      // Set arch color
+      archElement.style.borderColor = color;
+      
+      // Reset animation
+      archElement.style.animation = 'none';
+      archElement.offsetHeight; // Trigger reflow
+      archElement.style.animation = null;
+      
+      // Animate score value
+      let currentScore = 0;
+      const targetScore = score;
+      const duration = 1500; // 1.5 seconds
+      const startTime = Date.now();
+      
+      function updateScore() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function (ease-out)
+        const eased = 1 - Math.pow(1 - progress, 3);
+        currentScore = Math.round(targetScore * eased);
+        
+        scoreElement.textContent = currentScore;
+        scoreElement.style.color = color;
+        
+        // Update arch color gradually
+        if (progress < 1) {
+          requestAnimationFrame(updateScore);
+        } else {
+          scoreElement.textContent = targetScore;
+          scoreElement.style.color = color;
+        }
+      }
+      
+      updateScore();
+      
+      // Trigger arch animation
+      setTimeout(() => {
+        archElement.style.animation = 'archDraw 1.5s ease-out forwards';
+      }, 100);
     }
 
     // --- Upload & Naming ---
