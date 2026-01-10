@@ -364,12 +364,13 @@
         <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
           <div class="score-container">
             <div class="score-arch" id="reading-arch"></div>
-            Reading Score: <span id="score-val" class="score-display">--</span>
+            Reading Score: <span id="score-val" class="score-display">--</span>%
             <div class="score-formula" id="reading-formula"></div>
           </div>
           <div class="score-container" id="shadowing-score-container" style="display: none;">
+            <span style="margin: 0 10px;">|</span>
             <div class="score-arch" id="shadowing-arch"></div>
-            Shadowing Score: <span id="shadow-score-val" class="score-display">--</span>
+            Shadowing Score: <span id="shadow-score-val" class="score-display">--</span>%
             <div class="score-formula" id="shadowing-formula"></div>
           </div>
         </div>
@@ -689,6 +690,14 @@
         isShadowing = false;
         setStatus("Error", false);
         document.getElementById('btn-start').disabled = false;
+        document.getElementById('btn-stop').disabled = true;
+        // Revert reading mode button state changes
+        if (isReadingMode) {
+          document.getElementById('btn-finish-reading').style.display = 'none';
+          document.getElementById('btn-finish-reading').disabled = true;
+          // Reset button spacing
+          document.getElementById('button-area').style.gap = '20px';
+        }
       }
     }
 
@@ -1022,7 +1031,7 @@
       // Reset animation
       archElement.style.animation = 'none';
       archElement.offsetHeight; // Trigger reflow
-      archElement.style.animation = null;
+      archElement.style.animation = '';
       
       // Animate score value
       let currentScore = 0;
