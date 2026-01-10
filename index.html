@@ -659,9 +659,10 @@
           const refText = currentTask.refText;
           const userText = finalTranscript.trim();
 
-          // 1. Reading Score (Base)
-          const sim = calculateSimilarity(refText, userText);
-          const readingScore = Math.round(sim * 100);
+          // 1. Reading Score (Base) - WER based
+          const { wer: rate, dist, refLen, hypLen } = wer(refText, userText);
+          // Simple score: 1 - WER, floored at 0
+          const readingScore = Math.max(0, Math.round(100 * (1 - rate)));
 
           // 2. Shadowing Score (Correction)
           // Score = Reading Score * (1 + (Speed - 1) / 2)
@@ -669,9 +670,10 @@
           // If Reading Mode (No Speed), treat as 1.0
           const usedSpeed = isReadingMode ? 1.0 : speed;
 
-          let correction = 1.0 + (usedSpeed - 1.0) / 2.0;
-          let shadowingScore = Math.round(readingScore * correction);
-          if (shadowingScore > 100) shadowingScore = 100;
+          // 補正係数の計算: correctionFactor = 1 + (playbackSpeed - 1) / 2
+          const correctionFactor = 1 + (usedSpeed - 1) / 2;
+          // シャドーイングスコアの計算: accuracy × correctionFactor（最大100）
+          const shadowingScore = Math.min(100, Math.round(readingScore * correctionFactor));
 
           // Display Results
           document.getElementById('result-area').style.display = 'block';
@@ -929,41 +931,67 @@
       return '';
     }
 
-    // Simple Dice Coefficient for similarity (Lightweight)
-    function calculateSimilarity(str1, str2) {
-      let s1 = normalizeTextForComparison(str1).replace(/\s/g, '');
-      let s2 = normalizeTextForComparison(str2).replace(/\s/g, '');
+    // Tokenize function: Split text into words (normalized)
+    function tokenize(text) {
+      const normalized = normalizeTextForComparison(text);
+      // Remove wildcard markers for tokenization (they're handled separately in comparison)
+      const cleaned = normalized.replace(/__WILDCARD_\d+__/g, '');
+      return cleaned.split(/\s+/).filter(w => w);
+    }
+
+    // WER (Word Error Rate) calculation using Levenshtein distance with wildcard support
+    function wer(r, h) {
+      // Tokenize reference text (including wildcards)
+      const refNormalized = normalizeTextForComparison(r);
+      const R = refNormalized.split(/\s+/).filter(w => w);
       
-      // Remove wildcard markers for similarity calculation
-      // (wildcards are already matched in comparison, so we can remove them)
-      s1 = s1.replace(/__WILDCARD_\d+__/g, '');
-      s2 = s2.replace(/__WILDCARD_\d+__/g, '');
-
-      if (s1.length === 0 && s2.length === 0) return 1;
-      if (s1.length === 0 || s2.length === 0) return 0;
-
-      const bigrams = (str) => {
-        const res = [];
-        for (let i = 0; i < str.length - 1; i++) res.push(str.slice(i, i + 2));
-        return res;
-      };
-
-      const bg1 = bigrams(s1);
-      const bg2 = bigrams(s2);
-
-      let intersection = 0;
-      // Copy to avoid modifying original array during check
-      const bg2Copy = [...bg2];
-
-      bg1.forEach(token => {
-        const idx = bg2Copy.indexOf(token);
-        if (idx !== -1) {
-          intersection++;
-          bg2Copy.splice(idx, 1);
+      // Tokenize user text
+      const H = tokenize(h);
+      
+      const N = R.length;
+      const M = H.length;
+      
+      // Initialize DP table
+      const dp = Array.from({ length: N + 1 }, () => Array(M + 1).fill(0));
+      
+      // Base cases: empty string to string of length i/j
+      for (let i = 0; i <= N; i++) dp[i][0] = i;
+      for (let j = 0; j <= M; j++) dp[0][j] = j;
+      
+      // Fill DP table with wildcard support
+      for (let i = 1; i <= N; i++) {
+        for (let j = 1; j <= M; j++) {
+          if (isWildcard(R[i - 1])) {
+            // Wildcard matches any user word with cost 0
+            // Options: skip wildcard (deletion), match wildcard to user word (match), or skip user word (insertion)
+            dp[i][j] = Math.min(
+              dp[i - 1][j],           // skip wildcard (deletion) - cost 0 for wildcard
+              dp[i - 1][j - 1],       // match wildcard to user word - cost 0
+              dp[i][j - 1] + 1        // skip user word (insertion) - cost 1
+            );
+          } else {
+            // Regular word matching
+            const c = R[i - 1] === H[j - 1] ? 0 : 1; // 0 if match, 1 if substitution
+            dp[i][j] = Math.min(
+              dp[i - 1][j] + 1,      // deletion
+              dp[i][j - 1] + 1,      // insertion
+              dp[i - 1][j - 1] + c   // substitution or match
+            );
+          }
         }
-      });
-
-      return (2 * intersection) / (bg1.length + bg2.length);
+      }
+      
+      const d = dp[N][M];
+      
+      // Count non-wildcard words in reference for WER denominator
+      const nonWildcardCount = R.filter(w => !isWildcard(w)).length;
+      
+      return {
+        wer: nonWildcardCount ? d / nonWildcardCount : 0,
+        dist: d,
+        refLen: nonWildcardCount,
+        hypLen: M
+      };
     }
   </script>
 
