@@ -875,11 +875,13 @@
       document.getElementById('user-stt-display').innerHTML = userHTML;
       document.getElementById('ref-text-display').innerHTML = refHTML;
 
-      // Practice Items (exclude wildcards)
+      // Practice Items (exclude wildcards and duplicates - only first occurrence)
       const pArea = document.getElementById('practice-items');
       pArea.innerHTML = '';
+      const seenWords = new Set(); // Track words already added
       missingWords.forEach(word => {
-        if (!isWildcard(word)) {
+        if (!isWildcard(word) && !seenWords.has(word)) {
+          seenWords.add(word); // Mark as seen
           const d = document.createElement('span');
           d.className = 'practice-item';
           d.innerHTML = `${word} <button class="speak-btn" onclick="playTTS('${word}')">🔊</button>`;
@@ -966,11 +968,11 @@
       return cleaned.split(/\s+/).filter(w => w);
     }
 
-    // WER (Word Error Rate) calculation using Levenshtein distance with wildcard support
+    // WER (Word Error Rate) calculation - wildcards are completely excluded
     function wer(r, h) {
-      // Tokenize reference text (including wildcards)
-      const refNormalized = normalizeTextForComparison(r);
-      const R = refNormalized.split(/\s+/).filter(w => w);
+      // Tokenize reference text - EXCLUDE wildcards completely
+      // This ensures 【】でくくった単語や表現はスコア計算に含まれない
+      const R = tokenize(r);
       
       // Tokenize user text
       const H = tokenize(h);
@@ -982,50 +984,31 @@
       const dp = Array.from({ length: N + 1 }, () => Array(M + 1).fill(0));
       
       // Base cases: empty string to string of length i/j
-      // Account for wildcard deletion costs (wildcards have cost 0)
       dp[0][0] = 0;
       for (let i = 1; i <= N; i++) {
-        // If current reference word is wildcard, deletion cost is 0
-        // Otherwise, deletion cost is previous cost + 1
-        if (isWildcard(R[i - 1])) {
-          dp[i][0] = dp[i - 1][0]; // Wildcard deletion costs 0
-        } else {
-          dp[i][0] = dp[i - 1][0] + 1; // Regular word deletion costs 1
-        }
+        dp[i][0] = dp[i - 1][0] + 1; // Regular word deletion costs 1
       }
       for (let j = 1; j <= M; j++) {
         dp[0][j] = j; // User word insertion always costs 1
       }
       
-      // Fill DP table with wildcard support
+      // Fill DP table - no wildcard handling needed since they're excluded
       for (let i = 1; i <= N; i++) {
         for (let j = 1; j <= M; j++) {
-          if (isWildcard(R[i - 1])) {
-            // Wildcard matches any user word with cost 0
-            // Options: skip wildcard (deletion), match wildcard to user word (match), or skip user word (insertion)
-            dp[i][j] = Math.min(
-              dp[i - 1][j],           // skip wildcard (deletion) - cost 0 for wildcard
-              dp[i - 1][j - 1],       // match wildcard to user word - cost 0
-              dp[i][j - 1] + 1        // skip user word (insertion) - cost 1
-            );
-          } else {
-            // Regular word matching
-            const c = R[i - 1] === H[j - 1] ? 0 : 1; // 0 if match, 1 if substitution
-            dp[i][j] = Math.min(
-              dp[i - 1][j] + 1,      // deletion
-              dp[i][j - 1] + 1,      // insertion
-              dp[i - 1][j - 1] + c   // substitution or match
-            );
-          }
+          // Regular word matching only
+          const c = R[i - 1] === H[j - 1] ? 0 : 1; // 0 if match, 1 if substitution
+          dp[i][j] = Math.min(
+            dp[i - 1][j] + 1,      // deletion
+            dp[i][j - 1] + 1,      // insertion
+            dp[i - 1][j - 1] + c   // substitution or match
+          );
         }
       }
       
       const d = dp[N][M];
       
-      // Count non-wildcard words in reference for WER denominator
-      // The edit distance already accounts for wildcards (they have cost 0),
-      // so we divide by non-wildcard count to get WER for actual words only
-      const nonWildcardCount = R.filter(w => !isWildcard(w)).length;
+      // All words in R are non-wildcard since we used tokenize()
+      const nonWildcardCount = N;
       
       return {
         wer: nonWildcardCount ? d / nonWildcardCount : 0,
