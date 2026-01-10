@@ -801,6 +801,21 @@
       }
     }
 
+    // Global map to store wildcard contents
+    let wildcardContentMap = new Map();
+    
+    // Extract wildcard contents from original text
+    function extractWildcardContents(text) {
+      wildcardContentMap.clear();
+      let index = 0;
+      text.replace(/【([^】]*)】/g, (match, content) => {
+        wildcardContentMap.set(`__WILDCARD_${index}__`, content);
+        index++;
+        return match;
+      });
+      return wildcardContentMap;
+    }
+
     // --- Text Normalization Function ---
     function normalizeTextForComparison(text) {
       if (!text) return '';
@@ -853,6 +868,9 @@
 
     // LCS-based diff detection with wildcard support
     function diffWordsWithIndex(r, h) {
+      // Extract wildcard contents from reference text
+      extractWildcardContents(r);
+      
       const refNormalized = normalizeTextForComparison(r);
       const userNormalized = normalizeTextForComparison(h);
       const R = refNormalized.split(/\s+/).filter(w => w);
@@ -886,6 +904,7 @@
       // Trace back LCS to find matching positions
       const matchR = new Set();
       const matchH = new Set();
+      const wildcardToUserWords = new Map(); // Map<refIndex, [userIndex1, userIndex2]>
       let i = n, j = m;
       
       while (i > 0 && j > 0) {
@@ -895,6 +914,14 @@
             // Match wildcard to user word (preferred)
             matchR.add(i - 1);
             matchH.add(j - 1);
+            // Track this wildcard-user word match
+            if (!wildcardToUserWords.has(i - 1)) {
+              wildcardToUserWords.set(i - 1, []);
+            }
+            const matches = wildcardToUserWords.get(i - 1);
+            if (matches.length < 2) {
+              matches.push(j - 1);
+            }
             i--; j--;
           } else if (l[i - 1][j] === l[i][j]) {
             // Skip wildcard (no user word to match)
@@ -920,16 +947,24 @@
         i--; // Skip unmatched wildcards at the start
       }
 
+      // Build set of user indices matched to wildcards
+      const userMatchedToWildcard = new Set();
+      for (const [refIdx, userIndices] of wildcardToUserWords) {
+        userIndices.forEach(userIdx => userMatchedToWildcard.add(userIdx));
+      }
+      
       // Find unmatched positions
       const missedIdx = [];
       const addedIdx = [];
+      
       for (let k = 0; k < n; k++) {
         if (!matchR.has(k) && !isWildcard(R[k])) {
           missedIdx.push(k);
         }
       }
       for (let k = 0; k < m; k++) {
-        if (!matchH.has(k)) {
+        // Exclude user words matched to wildcards from addedIdx
+        if (!matchH.has(k) && !userMatchedToWildcard.has(k)) {
           addedIdx.push(k);
         }
       }
@@ -941,14 +976,17 @@
         missed: missedIdx.map(k => R[k]),
         added: addedIdx.map(k => H[k]),
         matchR,
-        matchH
+        matchH,
+        wildcardToUserWords,
+        userMatchedToWildcard
       };
     }
 
     // --- Visual Comparison Logic (LCS-based Diff) ---
     function compareAndVisualize(ref, user) {
       const diff = diffWordsWithIndex(ref, user);
-      const { R, H, missedIdx, addedIdx, matchR, matchH } = diff;
+      const { R, H, missedIdx, addedIdx, matchR, matchH, wildcardToUserWords, userMatchedToWildcard } = diff;
+
 
       let refHTML = "";
       let userHTML = "";
@@ -957,11 +995,17 @@
       // Generate Reference HTML
       for (let i = 0; i < R.length; i++) {
         if (isWildcard(R[i])) {
-          // Check if wildcard was matched
-          if (matchR.has(i)) {
-            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（任意の単語を許容）">[任意] </span>`;
+          // Get original content from wildcardContentMap
+          const originalContent = wildcardContentMap.get(R[i]) || '';
+          const matchedUserIndices = wildcardToUserWords ? (wildcardToUserWords.get(i) || []) : [];
+          const displayContent = originalContent ? `【${originalContent}】` : '【任意】';
+          
+          if (matchR.has(i) && matchedUserIndices.length > 0) {
+            // Show matched user words in parentheses (max 2 words)
+            const userWordsText = matchedUserIndices.slice(0, 2).map(idx => H[idx]).join(' ');
+            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（${userWordsText}にマッチ）">${displayContent} </span>`;
           } else {
-            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（スキップ）">[任意] </span>`;
+            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（スキップ）">${displayContent} </span>`;
           }
         } else if (matchR.has(i)) {
           refHTML += `<span>${R[i]} </span>`;
@@ -973,9 +1017,14 @@
 
       // Generate User HTML
       for (let i = 0; i < H.length; i++) {
-        if (matchH.has(i)) {
+        if (userMatchedToWildcard && userMatchedToWildcard.has(i)) {
+          // User word matched to wildcard - highlight in blue (not an error)
+          userHTML += `<span class="highlight-added">${H[i]} </span>`;
+        } else if (matchH.has(i)) {
+          // Matched word
           userHTML += `<span>${H[i]} </span>`;
         } else {
+          // Unmatched word (error)
           userHTML += `<span class="highlight-added">${H[i]} </span>`;
         }
       }
