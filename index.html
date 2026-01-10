@@ -743,107 +743,134 @@
       return /^__WILDCARD_\d+__$/.test(word);
     }
 
-    // --- Visual Comparison Logic (Simple Diff) ---
-    function compareAndVisualize(ref, user) {
-      const refNormalized = normalizeTextForComparison(ref);
-      const userNormalized = normalizeTextForComparison(user);
-      const refWords = refNormalized.split(/\s+/).filter(w => w);
-      const userWords = userNormalized.split(/\s+/).filter(w => w);
+    // LCS-based diff detection with wildcard support
+    function diffWordsWithIndex(r, h) {
+      const refNormalized = normalizeTextForComparison(r);
+      const userNormalized = normalizeTextForComparison(h);
+      const R = refNormalized.split(/\s+/).filter(w => w);
+      const H = userNormalized.split(/\s+/).filter(w => w);
+      const n = R.length;
+      const m = H.length;
 
-      let userHTML = "";
-      let refHTML = "";
-      let missingWords = [];
-
-      let rIdx = 0;
-      let uIdx = 0;
-
-      // 1. Generate Ref HTML (Red for missing)
-      // Process reference words with wildcard support
-      for (let i = 0; i < refWords.length; i++) {
-        const rWord = refWords[i];
-        
-        if (isWildcard(rWord)) {
-          // Wildcard: Check if next reference word matches current user position
-          // If next word matches, skip wildcard (consume 0 user words)
-          // If next word doesn't match, consume 1 user word
-          const nextRefWord = (i + 1 < refWords.length) ? refWords[i + 1] : null;
-          
-          if (nextRefWord && uIdx < userWords.length && userWords[uIdx] === nextRefWord) {
-            // Next reference word matches current user position
-            // Skip wildcard (consume 0 user words)
-            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（スキップ）">[任意] </span>`;
-          } else if (uIdx < userWords.length) {
-            // Consume 1 user word for wildcard
-            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（任意の単語を許容）">[任意] </span>`;
-            uIdx++;
+      // LCS (Longest Common Subsequence) length calculation
+      // Modified to handle wildcards: wildcards match any word with cost 0
+      const l = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
+      
+      for (let i = 1; i <= n; i++) {
+        for (let j = 1; j <= m; j++) {
+          if (isWildcard(R[i - 1])) {
+            // Wildcard matches any user word
+            l[i][j] = Math.max(
+              l[i - 1][j],           // skip wildcard
+              l[i - 1][j - 1] + 1,   // match wildcard to user word
+              l[i][j - 1]             // skip user word
+            );
+          } else if (R[i - 1] === H[j - 1]) {
+            // Exact match
+            l[i][j] = l[i - 1][j - 1] + 1;
           } else {
-            // No more user words - mark as missing but don't add to practice list
-            refHTML += `<span class="highlight-missing">[任意] </span>`;
-          }
-        } else {
-          // Regular word matching
-          let found = false;
-          for (let k = 0; k < 5 && uIdx + k < userWords.length; k++) { // Look ahead 5 words
-            if (userWords[uIdx + k] === rWord) {
-              found = true;
-              uIdx += (k + 1);
-              break;
-            }
-          }
-
-          if (found) {
-            refHTML += `<span>${rWord} </span>`;
-          } else {
-            refHTML += `<span class="highlight-missing">${rWord} </span>`;
-            missingWords.push(rWord);
+            // No match
+            l[i][j] = Math.max(l[i - 1][j], l[i][j - 1]);
           }
         }
       }
 
-      // Reset for User HTML (Blue for added)
-      uIdx = 0;
-      rIdx = 0;
-      let userHTMLTemp = [];
-
-      userWords.forEach(uWord => {
-        // Check if current ref position is wildcard or matches
-        let found = false;
-        
-        // Look ahead for wildcards or matching words
-        for (let k = 0; k < 5 && rIdx + k < refWords.length; k++) {
-          const refWord = refWords[rIdx + k];
-          
-          if (isWildcard(refWord)) {
-            // Found wildcard - check if next ref word matches current user word
-            const nextRefWord = (rIdx + k + 1 < refWords.length) ? refWords[rIdx + k + 1] : null;
-            
-            if (nextRefWord === uWord) {
-              // Next ref word matches - skip wildcard
-              found = true;
-              rIdx += (k + 1); // Skip wildcard and move to next word
-              break;
-            } else if (k === 0) {
-              // Wildcard at current position - match any word
-              found = true;
-              rIdx += (k + 1);
-              break;
-            }
-          } else if (refWord === uWord) {
-            // Found matching word
-            found = true;
-            rIdx += (k + 1);
-            break;
-          }
-        }
-
-        if (found) {
-          userHTMLTemp.push(`<span>${uWord}</span>`);
-        } else {
-          userHTMLTemp.push(`<span class="highlight-added">${uWord}</span>`);
-        }
-      });
+      // Trace back LCS to find matching positions
+      const matchR = new Set();
+      const matchH = new Set();
+      let i = n, j = m;
       
-      userHTML = userHTMLTemp.join(' ');
+      while (i > 0 && j > 0) {
+        if (isWildcard(R[i - 1])) {
+          // Wildcard: prefer matching to user word if possible
+          if (j > 0 && l[i - 1][j - 1] + 1 === l[i][j]) {
+            // Match wildcard to user word (preferred)
+            matchR.add(i - 1);
+            matchH.add(j - 1);
+            i--; j--;
+          } else if (l[i - 1][j] === l[i][j]) {
+            // Skip wildcard (no user word to match)
+            i--;
+          } else {
+            // Skip user word (wildcard already matched or no match possible)
+            j--;
+          }
+        } else if (R[i - 1] === H[j - 1]) {
+          // Exact match
+          matchR.add(i - 1);
+          matchH.add(j - 1);
+          i--; j--;
+        } else if (l[i - 1][j] >= l[i][j - 1]) {
+          i--; // Reference word is extra
+        } else {
+          j--; // User word is extra
+        }
+      }
+      
+      // Handle remaining wildcards at the beginning
+      while (i > 0 && isWildcard(R[i - 1])) {
+        i--; // Skip unmatched wildcards at the start
+      }
+
+      // Find unmatched positions
+      const missedIdx = [];
+      const addedIdx = [];
+      for (let k = 0; k < n; k++) {
+        if (!matchR.has(k) && !isWildcard(R[k])) {
+          missedIdx.push(k);
+        }
+      }
+      for (let k = 0; k < m; k++) {
+        if (!matchH.has(k)) {
+          addedIdx.push(k);
+        }
+      }
+
+      return {
+        R, H,
+        missedIdx,
+        addedIdx,
+        missed: missedIdx.map(k => R[k]),
+        added: addedIdx.map(k => H[k]),
+        matchR,
+        matchH
+      };
+    }
+
+    // --- Visual Comparison Logic (LCS-based Diff) ---
+    function compareAndVisualize(ref, user) {
+      const diff = diffWordsWithIndex(ref, user);
+      const { R, H, missedIdx, addedIdx, matchR, matchH } = diff;
+
+      let refHTML = "";
+      let userHTML = "";
+      const missingWords = [];
+
+      // Generate Reference HTML
+      for (let i = 0; i < R.length; i++) {
+        if (isWildcard(R[i])) {
+          // Check if wildcard was matched
+          if (matchR.has(i)) {
+            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（任意の単語を許容）">[任意] </span>`;
+          } else {
+            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（スキップ）">[任意] </span>`;
+          }
+        } else if (matchR.has(i)) {
+          refHTML += `<span>${R[i]} </span>`;
+        } else {
+          refHTML += `<span class="highlight-missing">${R[i]} </span>`;
+          missingWords.push(R[i]);
+        }
+      }
+
+      // Generate User HTML
+      for (let i = 0; i < H.length; i++) {
+        if (matchH.has(i)) {
+          userHTML += `<span>${H[i]} </span>`;
+        } else {
+          userHTML += `<span class="highlight-added">${H[i]} </span>`;
+        }
+      }
 
       document.getElementById('user-stt-display').innerHTML = userHTML;
       document.getElementById('ref-text-display').innerHTML = refHTML;
@@ -852,7 +879,7 @@
       const pArea = document.getElementById('practice-items');
       pArea.innerHTML = '';
       missingWords.forEach(word => {
-        if (!isWildcard(word)) { // Don't add wildcards to practice list
+        if (!isWildcard(word)) {
           const d = document.createElement('span');
           d.className = 'practice-item';
           d.innerHTML = `${word} <button class="speak-btn" onclick="playTTS('${word}')">🔊</button>`;
