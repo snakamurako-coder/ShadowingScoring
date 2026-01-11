@@ -28,11 +28,17 @@
     }
 
     /* Control Panel */
-    .controls {
+    .controls-2col {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 15px;
       margin-bottom: 20px;
+      align-items: start;
+    }
+    .controls-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
 
     select,
@@ -268,48 +274,51 @@
       </div>
     </div>
 
-    <!-- 書籍・単元 -->
-    <div class="controls">
-      <select id="sel-book" onchange="onBookChange()">
-        <option value="">学年＋科目を選択</option>
-      </select>
-      <select id="sel-unit" onchange="onUnitChange()" disabled>
-        <option value="">単元を選択</option>
-      </select>
-    </div>
-
-    <!-- アクセント・再生速度 -->
-    <div class="controls">
-      <div>
-        <label style="font-size:12px; color:#666;">アクセント</label>
-        <select id="sel-accent" style="margin-top:5px;">
-          <option value="en-US" selected>米国英語</option>
-          <option value="en-GB">英国英語</option>
+    <div class="controls-2col">
+      <!-- 左列: 学年＋科目 / 単元 / 課題 -->
+      <div class="controls-stack">
+        <select id="sel-book" onchange="onBookChange()">
+          <option value="">学年＋科目を選択</option>
+        </select>
+        <select id="sel-unit" onchange="onUnitChange()" disabled>
+          <option value="">単元を選択</option>
+        </select>
+        <select id="sel-task" onchange="onTaskChange()" disabled>
+          <option value="">課題を選択</option>
         </select>
       </div>
-      <select id="sel-speed">
-        <option value="0.6">速度: x0.6</option>
-        <option value="0.7">速度: x0.7</option>
-        <option value="0.8">速度: x0.8</option>
-        <option value="0.9">速度: x0.9</option>
-        <option value="1.0" selected>速度: x1.0（通常）</option>
-        <option value="1.1">速度: x1.1</option>
-        <option value="1.2">速度: x1.2</option>
-      </select>
-    </div>
 
-    <!-- 課題・マイク音量 -->
-    <div class="controls">
-      <select id="sel-task" onchange="onTaskChange()" disabled>
-        <option value="">課題を選択</option>
-      </select>
-      <div>
-        <label style="font-size:12px; color:#666;">マイク音量（調整用）</label>
-        <div class="volume-meter">
-          <div id="volume-bar" class="volume-bar"></div>
+      <!-- 右列: アクセント / 再生速度 / マイク音量・インジケーター -->
+      <div class="controls-stack">
+        <div>
+          <label style="font-size:12px; color:#666;">アクセント</label>
+          <select id="sel-accent" style="margin-top:5px;">
+            <option value="en-US" selected>米国英語</option>
+            <option value="en-GB">英国英語</option>
+          </select>
         </div>
-        <input type="range" id="mic-gain" min="0.5" max="3.0" step="0.1" value="1.0"
-          style="width:100%; margin-top:5px;">
+
+        <select id="sel-speed">
+          <option value="0.6">速度: x0.6</option>
+          <option value="0.7">速度: x0.7</option>
+          <option value="0.8">速度: x0.8</option>
+          <option value="0.9">速度: x0.9</option>
+          <option value="1.0" selected>速度: x1.0（通常）</option>
+          <option value="1.1">速度: x1.1</option>
+          <option value="1.2">速度: x1.2</option>
+        </select>
+
+        <div>
+          <label style="font-size:12px; color:#666;">マイク音量（調整用）</label>
+          <input type="range" id="mic-gain" min="0.5" max="3.0" step="0.1" value="1.0"
+            style="width:100%; margin-top:5px;">
+        </div>
+        <div>
+          <label style="font-size:12px; color:#666;">音量インジケーター</label>
+          <div class="volume-meter">
+            <div id="volume-bar" class="volume-bar"></div>
+          </div>
+        </div>
       </div>
     </div>
 
