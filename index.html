@@ -841,6 +841,21 @@
       return text.replace(/[’‘`]/g, "'"); // extend if needed
     }
     
+    // Normalize Roman numerals to ASCII for matching (raw display keeps originals)
+    function normalizeRomanForMatch(token) {
+      const map = {
+        'Ⅰ': 'I', 'Ⅱ': 'II', 'Ⅲ': 'III', 'Ⅳ': 'IV', 'Ⅴ': 'V',
+        'Ⅵ': 'VI', 'Ⅶ': 'VII', 'Ⅷ': 'VIII', 'Ⅸ': 'IX', 'Ⅹ': 'X',
+        'ⅰ': 'i', 'ⅱ': 'ii', 'ⅲ': 'iii', 'ⅳ': 'iv', 'ⅴ': 'v',
+        'ⅵ': 'vi', 'ⅶ': 'vii', 'ⅷ': 'viii', 'ⅸ': 'ix', 'ⅹ': 'x'
+      };
+      let out = token;
+      for (const [k, v] of Object.entries(map)) {
+        out = out.split(k).join(v);
+      }
+      return out;
+    }
+    
     // Tokenize reference text, marking wildcard spans without inserting tokens
     function tokenizeRefWithWildcards(text) {
       text = normalizeQuotes(text);
@@ -864,13 +879,13 @@
       const isWildcardToken = [];
       const spanIds = [];
     
-      const wordRegex = /[A-Za-z']+/g;
+      const wordRegex = /[A-Za-z0-9'ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹ]+/g;
       segments.forEach(seg => {
         let w;
         while ((w = wordRegex.exec(seg.text)) !== null) {
           const raw = w[0];
           rawTokens.push(raw);
-          normTokens.push(raw.toLowerCase());
+          normTokens.push(normalizeRomanForMatch(raw.toLowerCase()));
           isWildcardToken.push(!!seg.wildcard);
           spanIds.push(seg.wildcard ? seg.spanId : -1);
         }
@@ -882,14 +897,14 @@
     // Tokenize user text (no wildcards)
     function tokenizeUser(text) {
       text = normalizeQuotes(text);
-      const wordRegex = /[A-Za-z']+/g;
+      const wordRegex = /[A-Za-z0-9'ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹ]+/g;
       const rawTokens = [];
       const normTokens = [];
       let m;
       while ((m = wordRegex.exec(text)) !== null) {
         const raw = m[0];
         rawTokens.push(raw);
-        normTokens.push(raw.toLowerCase());
+        normTokens.push(normalizeRomanForMatch(raw.toLowerCase()));
       }
       return { rawTokens, normTokens };
     }
