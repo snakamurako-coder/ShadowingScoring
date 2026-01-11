@@ -801,260 +801,279 @@
       }
     }
 
-    // Global map to store wildcard contents
-    let wildcardContentMap = new Map();
+    // --- Wildcard-aware tokenization & utilities ---
+    const WILDCARD_MAX_CONSUME = 2; // How many user tokens a wildcard can absorb
+    const FUZZY_DISTANCE_THRESHOLD = 1; // Levenshtein distance threshold for fuzzy match
     
-    // Extract wildcard contents from original text
-    function extractWildcardContents(text) {
-      wildcardContentMap.clear();
-      let index = 0;
-      text.replace(/【([^】]*)】/g, (match, content) => {
-        wildcardContentMap.set(`__WILDCARD_${index}__`, content);
-        index++;
-        return match;
-      });
-      return wildcardContentMap;
-    }
-
-    // --- Text Normalization Function ---
-    function normalizeTextForComparison(text) {
-      if (!text) return '';
-      
-      // Extract and mark wildcard sections (【】) before normalization
-      let processedText = text;
-      let wildcardIndex = 0;
-      
-      // Replace 【...】 with a special marker
-      processedText = processedText.replace(/【([^】]*)】/g, (match, content) => {
-        const marker = `__WILDCARD_${wildcardIndex}__`;
-        wildcardIndex++;
-        return ` ${marker} `; // Add spaces around marker
-      });
-      
-      // Convert to lowercase
-      let normalized = processedText.toLowerCase();
-      
-      // Convert Roman numerals (Ⅰ, Ⅱ, Ⅲ, etc.) to regular numbers
-      const romanToNum = {
-        'Ⅰ': '1', 'Ⅱ': '2', 'Ⅲ': '3', 'Ⅳ': '4', 'Ⅴ': '5',
-        'Ⅵ': '6', 'Ⅶ': '7', 'Ⅷ': '8', 'Ⅸ': '9', 'Ⅹ': '10',
-        'ⅰ': '1', 'ⅱ': '2', 'ⅲ': '3', 'ⅳ': '4', 'ⅴ': '5',
-        'ⅵ': '6', 'ⅶ': '7', 'ⅷ': '8', 'ⅸ': '9', 'ⅹ': '10'
-      };
-      for (const [roman, num] of Object.entries(romanToNum)) {
-        normalized = normalized.replace(new RegExp(roman, 'g'), num);
-      }
-      
-      // Replace newlines, tabs, and common punctuation with spaces
-      // This prevents words from being concatenated
-      normalized = normalized.replace(/[\n\r\t]/g, ' '); // Newlines and tabs
-      normalized = normalized.replace(/[.,;:!?()[\]{}'"`]/g, ' '); // Punctuation (but preserve wildcard markers)
-      normalized = normalized.replace(/[-–—]/g, ' '); // Hyphens and dashes
-      
-      // Preserve wildcard markers before removing non-alphanumeric
-      // Replace all non-alphanumeric characters (except spaces and wildcard markers) with spaces
-      normalized = normalized.replace(/[^a-z0-9 _]/g, ' ');
-      
-      // Normalize multiple spaces to single space (but preserve wildcard markers)
-      normalized = normalized.replace(/\s+/g, ' ');
-      
-      return normalized.trim();
-    }
-    
-    // Helper function to check if a word is a wildcard
+    // Helper: wildcard marker check (case-insensitive)
     function isWildcard(word) {
-      return /^__WILDCARD_\d+__$/.test(word);
+      return /^__WILDCARD_\d+__$/i.test(word);
+    }
+    
+    // Levenshtein distance (small tokens, simple implementation)
+    function levenshtein(a, b) {
+      const m = a.length, n = b.length;
+      const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+      for (let i = 0; i <= m; i++) dp[i][0] = i;
+      for (let j = 0; j <= n; j++) dp[0][j] = j;
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(
+            dp[i - 1][j] + 1,
+            dp[i][j - 1] + 1,
+            dp[i - 1][j - 1] + cost
+          );
+        }
+      }
+      return dp[m][n];
+    }
+    
+    // Fuzzy match for proper nouns / rare words
+    function isFuzzyMatch(a, b) {
+      if (!a || !b) return false;
+      const dist = levenshtein(a, b);
+      return dist <= FUZZY_DISTANCE_THRESHOLD;
+    }
+    
+    // Tokenize reference text, marking wildcard spans without inserting tokens
+    function tokenizeRefWithWildcards(text) {
+      const segments = [];
+      let last = 0;
+      let wildcardId = 0;
+      const regex = /【([^】]*)】/g;
+      let m;
+      while ((m = regex.exec(text)) !== null) {
+        if (m.index > last) segments.push({ text: text.slice(last, m.index), wildcard: false });
+        segments.push({ text: m[1], wildcard: true, spanId: wildcardId++ });
+        last = m.index + m[0].length;
+      }
+      if (last < text.length) segments.push({ text: text.slice(last), wildcard: false });
+    
+      const rawTokens = [];
+      const normTokens = [];
+      const isWildcardToken = [];
+      const spanIds = [];
+    
+      const wordRegex = /[A-Za-z']+/g;
+      segments.forEach(seg => {
+        let w;
+        while ((w = wordRegex.exec(seg.text)) !== null) {
+          const raw = w[0];
+          rawTokens.push(raw);
+          normTokens.push(raw.toLowerCase());
+          isWildcardToken.push(!!seg.wildcard);
+          spanIds.push(seg.wildcard ? seg.spanId : -1);
+        }
+      });
+    
+      return { rawTokens, normTokens, isWildcardToken, spanIds };
+    }
+    
+    // Tokenize user text (no wildcards)
+    function tokenizeUser(text) {
+      const wordRegex = /[A-Za-z']+/g;
+      const rawTokens = [];
+      const normTokens = [];
+      let m;
+      while ((m = wordRegex.exec(text)) !== null) {
+        const raw = m[0];
+        rawTokens.push(raw);
+        normTokens.push(raw.toLowerCase());
+      }
+      return { rawTokens, normTokens };
     }
 
-    // LCS-based diff detection with wildcard support
+    // Wildcard-aware diff with fuzzy match
     function diffWordsWithIndex(r, h) {
-      // Extract wildcard contents from reference text
-      extractWildcardContents(r);
-      
-      const refNormalized = normalizeTextForComparison(r);
-      const userNormalized = normalizeTextForComparison(h);
-      const R = refNormalized.split(/\s+/).filter(w => w);
-      const H = userNormalized.split(/\s+/).filter(w => w);
+      const ref = tokenizeRefWithWildcards(r);
+      const user = tokenizeUser(h);
+      const R = ref.normTokens;
+      const H = user.normTokens;
       const n = R.length;
       const m = H.length;
-
-      // LCS (Longest Common Subsequence) length calculation
-      // Modified to handle wildcards: wildcards match any word with cost 0
-      const l = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
-      
+    
+      const dp = Array.from({ length: n + 1 }, () =>
+        Array.from({ length: m + 1 }, () => ({ cost: Infinity, prev: null }))
+      );
+      dp[0][0].cost = 0;
+      for (let j = 1; j <= m; j++) {
+        dp[0][j].cost = j;
+        dp[0][j].prev = { i: 0, j: j - 1, op: 'ins' };
+      }
       for (let i = 1; i <= n; i++) {
-        for (let j = 1; j <= m; j++) {
-          if (isWildcard(R[i - 1])) {
-            // Wildcard matches any user word
-            l[i][j] = Math.max(
-              l[i - 1][j],           // skip wildcard
-              l[i - 1][j - 1] + 1,   // match wildcard to user word
-              l[i][j - 1]             // skip user word
-            );
-          } else if (R[i - 1] === H[j - 1]) {
-            // Exact match
-            l[i][j] = l[i - 1][j - 1] + 1;
+        const wild = ref.isWildcardToken[i - 1];
+        dp[i][0].cost = wild ? 0 : i;
+        dp[i][0].prev = { i: i - 1, j: 0, op: wild ? 'w0' : 'del' };
+      }
+    
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j <= m; j++) {
+          const cur = dp[i][j];
+          if (cur.cost === Infinity) continue;
+          const isWild = ref.isWildcardToken[i];
+    
+          if (isWild) {
+            // consume 0
+            if (cur.cost < dp[i + 1][j].cost) {
+              dp[i + 1][j] = { cost: cur.cost, prev: { i, j, op: 'w0' } };
+            }
+            // consume 1
+            if (j < m && cur.cost < dp[i + 1][j + 1].cost) {
+              dp[i + 1][j + 1] = { cost: cur.cost, prev: { i, j, op: 'w1' } };
+            }
+            // consume 2
+            if (j + 1 < m && cur.cost < dp[i + 1][j + 2].cost) {
+              dp[i + 1][j + 2] = { cost: cur.cost, prev: { i, j, op: 'w2' } };
+            }
           } else {
-            // No match
-            l[i][j] = Math.max(l[i - 1][j], l[i][j - 1]);
+            // substitution / match (with fuzzy)
+            if (j < m) {
+              const fuzzy = isFuzzyMatch(R[i], H[j]);
+              const cost = R[i] === H[j] || fuzzy ? 0 : 1;
+              const op = cost === 0 ? (R[i] === H[j] ? 'match' : 'fuzzy') : 'sub';
+              if (cur.cost + cost < dp[i + 1][j + 1].cost) {
+                dp[i + 1][j + 1] = { cost: cur.cost + cost, prev: { i, j, op } };
+              }
+            }
+            // deletion
+            if (cur.cost + 1 < dp[i + 1][j].cost) {
+              dp[i + 1][j] = { cost: cur.cost + 1, prev: { i, j, op: 'del' } };
+            }
+            // insertion
+            if (j < m && cur.cost + 1 < dp[i][j + 1].cost) {
+              dp[i][j + 1] = { cost: cur.cost + 1, prev: { i, j, op: 'ins' } };
+            }
           }
         }
       }
-
-      // Trace back LCS to find matching positions
+    
+      // Traceback
+      let i = n, j = m;
       const matchR = new Set();
       const matchH = new Set();
-      const wildcardToUserWords = new Map(); // Map<refIndex, [userIndex1, userIndex2]>
-      let i = n, j = m;
-      
-      while (i > 0 && j > 0) {
-        if (isWildcard(R[i - 1])) {
-          // Wildcard: prefer matching to user word if possible
-          if (j > 0 && l[i - 1][j - 1] + 1 === l[i][j]) {
-            // Match wildcard to user word (preferred)
-            matchR.add(i - 1);
-            matchH.add(j - 1);
-            // Track this wildcard-user word match
-            if (!wildcardToUserWords.has(i - 1)) {
-              wildcardToUserWords.set(i - 1, []);
-            }
-            const matches = wildcardToUserWords.get(i - 1);
-            if (matches.length < 2) {
-              matches.push(j - 1);
-            }
-            i--; j--;
-          } else if (l[i - 1][j] === l[i][j]) {
-            // Skip wildcard (no user word to match)
-            i--;
-          } else {
-            // Skip user word (wildcard already matched or no match possible)
-            j--;
-          }
-        } else if (R[i - 1] === H[j - 1]) {
-          // Exact match
-          matchR.add(i - 1);
-          matchH.add(j - 1);
-          i--; j--;
-        } else if (l[i - 1][j] >= l[i][j - 1]) {
-          i--; // Reference word is extra
-        } else {
-          j--; // User word is extra
-        }
-      }
-      
-      // Handle remaining wildcards at the beginning
-      while (i > 0 && isWildcard(R[i - 1])) {
-        i--; // Skip unmatched wildcards at the start
-      }
-
-      // Build set of user indices matched to wildcards
+      const fuzzyR = new Set();
+      const fuzzyH = new Set();
+      const wildcardToUserWords = new Map();
       const userMatchedToWildcard = new Set();
-      for (const [refIdx, userIndices] of wildcardToUserWords) {
-        userIndices.forEach(userIdx => userMatchedToWildcard.add(userIdx));
-      }
-      
-      // Find unmatched positions
       const missedIdx = [];
       const addedIdx = [];
-      
-      for (let k = 0; k < n; k++) {
-        if (!matchR.has(k) && !isWildcard(R[k])) {
-          missedIdx.push(k);
+    
+      while (i > 0 || j > 0) {
+        const node = dp[i][j];
+        if (!node || !node.prev) break;
+        const { i: pi, j: pj, op } = node.prev;
+    
+        if (op === 'match') {
+          matchR.add(i - 1);
+          matchH.add(j - 1);
+        } else if (op === 'fuzzy') {
+          matchR.add(i - 1);
+          matchH.add(j - 1);
+          fuzzyR.add(i - 1);
+          fuzzyH.add(j - 1);
+        } else if (op === 'sub') {
+          missedIdx.push(i - 1);
+          addedIdx.push(j - 1);
+        } else if (op === 'del') {
+          missedIdx.push(i - 1);
+        } else if (op === 'ins') {
+          addedIdx.push(j - 1);
+        } else if (op === 'w0') {
+          // no consumption
+        } else if (op === 'w1') {
+          if (!wildcardToUserWords.has(i - 1)) wildcardToUserWords.set(i - 1, []);
+          wildcardToUserWords.get(i - 1).push(pj);
+          userMatchedToWildcard.add(pj);
+        } else if (op === 'w2') {
+          if (!wildcardToUserWords.has(i - 1)) wildcardToUserWords.set(i - 1, []);
+          wildcardToUserWords.get(i - 1).push(pj);
+          wildcardToUserWords.get(i - 1).push(pj + 1);
+          userMatchedToWildcard.add(pj);
+          userMatchedToWildcard.add(pj + 1);
         }
+    
+        i = pi;
+        j = pj;
       }
-      for (let k = 0; k < m; k++) {
-        // Exclude user words matched to wildcards AND wildcard markers from addedIdx
-        if (!matchH.has(k) && !userMatchedToWildcard.has(k) && !isWildcard(H[k])) {
-          addedIdx.push(k);
-        }
-      }
-
+    
+      missedIdx.reverse();
+      addedIdx.reverse();
+    
       return {
-        R, H,
+        R: ref.rawTokens,
+        H: user.rawTokens,
+        isWildcardToken: ref.isWildcardToken,
+        spanIds: ref.spanIds,
         missedIdx,
         addedIdx,
-        missed: missedIdx.map(k => R[k]),
-        added: addedIdx.map(k => H[k]),
+        missed: missedIdx.map(k => ref.rawTokens[k]),
+        added: addedIdx.map(k => user.rawTokens[k]),
         matchR,
         matchH,
         wildcardToUserWords,
-        userMatchedToWildcard
+        userMatchedToWildcard,
+        fuzzyR,
+        fuzzyH,
+        totalCost: dp[n][m].cost,
+        nonWildcardCount: ref.isWildcardToken.filter(v => !v).length
       };
     }
 
-    // --- Visual Comparison Logic (LCS-based Diff) ---
+    // --- Visual Comparison Logic (alignment-based) ---
     function compareAndVisualize(ref, user) {
       const diff = diffWordsWithIndex(ref, user);
-      const { R, H, missedIdx, addedIdx, matchR, matchH, wildcardToUserWords, userMatchedToWildcard } = diff;
-
+      const {
+        R, H, missedIdx, addedIdx, matchR, matchH,
+        wildcardToUserWords, userMatchedToWildcard, fuzzyR, fuzzyH, isWildcardToken
+      } = diff;
 
       let refHTML = "";
       let userHTML = "";
       const missingWords = [];
 
-      // Generate Reference HTML
+      // Reference side
       for (let i = 0; i < R.length; i++) {
-        if (isWildcard(R[i])) {
-          // Get original content from wildcardContentMap
-          // R[i] is lowercase, but wildcardContentMap keys are uppercase, so convert
-          const wildcardKey = R[i].toUpperCase();
-          const originalContent = wildcardContentMap.get(wildcardKey) || '';
-          const matchedUserIndices = wildcardToUserWords ? (wildcardToUserWords.get(i) || []) : [];
-          // Display original content in 【】format, or show matched user words if available
-          let displayContent;
-          if (matchedUserIndices.length > 0) {
-            // Show matched user words (max 2 words)
-            const userWordsText = matchedUserIndices.slice(0, 2).map(idx => H[idx]).join(' ');
-            displayContent = `【${userWordsText}】`;
-          } else if (originalContent) {
-            displayContent = `【${originalContent}】`;
-          } else {
-            displayContent = '【任意】';
-          }
-          
-          // No highlighting for wildcard - just display normally
-          refHTML += `<span>${displayContent} </span>`;
+        if (isWildcardToken[i]) {
+          refHTML += `<span>${R[i]} </span>`;
+        } else if (missedIdx.includes(i)) {
+          refHTML += `<span class="highlight-missing">${R[i]} </span>`;
+          missingWords.push(R[i]);
+        } else if (fuzzyR.has(i)) {
+          refHTML += `<span>${R[i]} </span>`;
         } else if (matchR.has(i)) {
           refHTML += `<span>${R[i]} </span>`;
         } else {
-          refHTML += `<span class="highlight-missing">${R[i]} </span>`;
-          missingWords.push(R[i]);
+          refHTML += `<span>${R[i]} </span>`;
         }
       }
 
-      // Generate User HTML
+      // User side
       for (let i = 0; i < H.length; i++) {
-        // Skip wildcard markers in user text - don't display them
-        if (isWildcard(H[i])) {
-          continue; // Skip wildcard markers in user text
-        }
-        
-        if (userMatchedToWildcard && userMatchedToWildcard.has(i)) {
-          // User word matched to wildcard - no highlighting (display as normal text)
+        if (userMatchedToWildcard.has(i)) {
+          userHTML += `<span>${H[i]} </span>`;
+        } else if (addedIdx.includes(i)) {
+          userHTML += `<span class="highlight-added">${H[i]} </span>`;
+        } else if (fuzzyH.has(i)) {
           userHTML += `<span>${H[i]} </span>`;
         } else if (matchH.has(i)) {
-          // Matched word
           userHTML += `<span>${H[i]} </span>`;
         } else {
-          // Unmatched word (error) - highlight in blue
-          userHTML += `<span class="highlight-added">${H[i]} </span>`;
+          userHTML += `<span>${H[i]} </span>`;
         }
       }
 
       document.getElementById('user-stt-display').innerHTML = userHTML;
       document.getElementById('ref-text-display').innerHTML = refHTML;
 
-      // Practice Items (exclude wildcards and duplicates - only first occurrence)
+      // Practice Items: only ref-side deletions outside wildcards
       const pArea = document.getElementById('practice-items');
       pArea.innerHTML = '';
-      const seenWords = new Set(); // Track words already added
+      const seenWords = new Set();
       missingWords.forEach(word => {
-        // Exclude wildcards (check both uppercase and lowercase, and handle variations)
-        const wordUpper = word.toUpperCase();
-        const isWildcardWord = isWildcard(word) || isWildcard(wordUpper) || 
-                              /^_?wildcard_\d+_?$/i.test(word);
+        const isWildcardWord = isWildcard(word) || /^_?wildcard_\d+_?$/i.test(word);
         if (!isWildcardWord && !seenWords.has(word)) {
-          seenWords.add(word); // Mark as seen
+          seenWords.add(word);
           const d = document.createElement('span');
           d.className = 'practice-item';
           d.innerHTML = `${word} <button class="speak-btn" onclick="playTTS('${word}')">🔊</button>`;
@@ -1204,53 +1223,16 @@
       return cleaned.split(/\s+/).filter(w => w);
     }
 
-    // WER (Word Error Rate) calculation - wildcards are completely excluded
+    // WER using wildcard-aware diff (non-wildcard count as denominator)
     function wer(r, h) {
-      // Tokenize reference text - EXCLUDE wildcards completely
-      // This ensures 【】でくくった単語や表現はスコア計算に含まれない
-      const R = tokenize(r);
-      
-      // Tokenize user text
-      const H = tokenize(h);
-      
-      const N = R.length;
-      const M = H.length;
-      
-      // Initialize DP table
-      const dp = Array.from({ length: N + 1 }, () => Array(M + 1).fill(0));
-      
-      // Base cases: empty string to string of length i/j
-      dp[0][0] = 0;
-      for (let i = 1; i <= N; i++) {
-        dp[i][0] = dp[i - 1][0] + 1; // Regular word deletion costs 1
-      }
-      for (let j = 1; j <= M; j++) {
-        dp[0][j] = j; // User word insertion always costs 1
-      }
-      
-      // Fill DP table - no wildcard handling needed since they're excluded
-      for (let i = 1; i <= N; i++) {
-        for (let j = 1; j <= M; j++) {
-          // Regular word matching only
-          const c = R[i - 1] === H[j - 1] ? 0 : 1; // 0 if match, 1 if substitution
-          dp[i][j] = Math.min(
-            dp[i - 1][j] + 1,      // deletion
-            dp[i][j - 1] + 1,      // insertion
-            dp[i - 1][j - 1] + c   // substitution or match
-          );
-        }
-      }
-      
-      const d = dp[N][M];
-      
-      // All words in R are non-wildcard since we used tokenize()
-      const nonWildcardCount = N;
-      
+      const diff = diffWordsWithIndex(r, h);
+      const nonWildcardCount = diff.isWildcardToken.filter(v => !v).length;
+      const dist = diff.totalCost;
       return {
-        wer: nonWildcardCount ? d / nonWildcardCount : 0,
-        dist: d,
+        wer: nonWildcardCount ? dist / nonWildcardCount : 0,
+        dist: dist,
         refLen: nonWildcardCount,
-        hypLen: M
+        hypLen: diff.H.length
       };
     }
   </script>
