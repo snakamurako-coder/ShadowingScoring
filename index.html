@@ -963,8 +963,8 @@
         }
       }
       for (let k = 0; k < m; k++) {
-        // Exclude user words matched to wildcards from addedIdx
-        if (!matchH.has(k) && !userMatchedToWildcard.has(k)) {
+        // Exclude user words matched to wildcards AND wildcard markers from addedIdx
+        if (!matchH.has(k) && !userMatchedToWildcard.has(k) && !isWildcard(H[k])) {
           addedIdx.push(k);
         }
       }
@@ -1024,6 +1024,11 @@
 
       // Generate User HTML
       for (let i = 0; i < H.length; i++) {
+        // Skip wildcard markers in user text - don't display them
+        if (isWildcard(H[i])) {
+          continue; // Skip wildcard markers in user text
+        }
+        
         if (userMatchedToWildcard && userMatchedToWildcard.has(i)) {
           // User word matched to wildcard - no highlighting (display as normal text)
           userHTML += `<span>${H[i]} </span>`;
@@ -1044,7 +1049,11 @@
       pArea.innerHTML = '';
       const seenWords = new Set(); // Track words already added
       missingWords.forEach(word => {
-        if (!isWildcard(word) && !seenWords.has(word)) {
+        // Exclude wildcards (check both uppercase and lowercase, and handle variations)
+        const wordUpper = word.toUpperCase();
+        const isWildcardWord = isWildcard(word) || isWildcard(wordUpper) || 
+                              /^_?wildcard_\d+_?$/i.test(word);
+        if (!isWildcardWord && !seenWords.has(word)) {
           seenWords.add(word); // Mark as seen
           const d = document.createElement('span');
           d.className = 'practice-item';
