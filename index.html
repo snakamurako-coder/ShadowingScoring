@@ -605,6 +605,8 @@
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
+            channelCount: 1,
+            sampleRate: 24000, // 希望値（ブラウザによっては無視される場合あり）
             echoCancellation: false,
             noiseSuppression: false,
             autoGainControl: false
