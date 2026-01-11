@@ -996,17 +996,24 @@
       for (let i = 0; i < R.length; i++) {
         if (isWildcard(R[i])) {
           // Get original content from wildcardContentMap
-          const originalContent = wildcardContentMap.get(R[i]) || '';
+          // R[i] is lowercase, but wildcardContentMap keys are uppercase, so convert
+          const wildcardKey = R[i].toUpperCase();
+          const originalContent = wildcardContentMap.get(wildcardKey) || '';
           const matchedUserIndices = wildcardToUserWords ? (wildcardToUserWords.get(i) || []) : [];
-          const displayContent = originalContent ? `【${originalContent}】` : '【任意】';
-          
-          if (matchR.has(i) && matchedUserIndices.length > 0) {
-            // Show matched user words in parentheses (max 2 words)
+          // Display original content in 【】format, or show matched user words if available
+          let displayContent;
+          if (matchedUserIndices.length > 0) {
+            // Show matched user words (max 2 words)
             const userWordsText = matchedUserIndices.slice(0, 2).map(idx => H[idx]).join(' ');
-            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（${userWordsText}にマッチ）">${displayContent} </span>`;
+            displayContent = `【${userWordsText}】`;
+          } else if (originalContent) {
+            displayContent = `【${originalContent}】`;
           } else {
-            refHTML += `<span class="highlight-wildcard" title="ワイルドカード（スキップ）">${displayContent} </span>`;
+            displayContent = '【任意】';
           }
+          
+          // No highlighting for wildcard - just display normally
+          refHTML += `<span>${displayContent} </span>`;
         } else if (matchR.has(i)) {
           refHTML += `<span>${R[i]} </span>`;
         } else {
@@ -1018,13 +1025,13 @@
       // Generate User HTML
       for (let i = 0; i < H.length; i++) {
         if (userMatchedToWildcard && userMatchedToWildcard.has(i)) {
-          // User word matched to wildcard - highlight in blue (not an error)
-          userHTML += `<span class="highlight-added">${H[i]} </span>`;
+          // User word matched to wildcard - no highlighting (display as normal text)
+          userHTML += `<span>${H[i]} </span>`;
         } else if (matchH.has(i)) {
           // Matched word
           userHTML += `<span>${H[i]} </span>`;
         } else {
-          // Unmatched word (error)
+          // Unmatched word (error) - highlight in blue
           userHTML += `<span class="highlight-added">${H[i]} </span>`;
         }
       }
