@@ -836,8 +836,14 @@
       return dist <= FUZZY_DISTANCE_THRESHOLD;
     }
     
+    // Normalize quotes (smart quotes → ASCII apostrophe)
+    function normalizeQuotes(text) {
+      return text.replace(/[’‘`]/g, "'"); // extend if needed
+    }
+    
     // Tokenize reference text, marking wildcard spans without inserting tokens
     function tokenizeRefWithWildcards(text) {
+      text = normalizeQuotes(text);
       const segments = [];
       let last = 0;
       let wildcardId = 0;
@@ -875,6 +881,7 @@
     
     // Tokenize user text (no wildcards)
     function tokenizeUser(text) {
+      text = normalizeQuotes(text);
       const wordRegex = /[A-Za-z']+/g;
       const rawTokens = [];
       const normTokens = [];
