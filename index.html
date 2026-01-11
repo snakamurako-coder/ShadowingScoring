@@ -843,9 +843,12 @@
       let wildcardId = 0;
       const regex = /【([^】]*)】/g;
       let m;
+      const wildcardTexts = [];
       while ((m = regex.exec(text)) !== null) {
         if (m.index > last) segments.push({ text: text.slice(last, m.index), wildcard: false });
-        segments.push({ text: m[1], wildcard: true, spanId: wildcardId++ });
+        segments.push({ text: m[1], wildcard: true, spanId: wildcardId });
+        wildcardTexts[wildcardId] = m[1];
+        wildcardId++;
         last = m.index + m[0].length;
       }
       if (last < text.length) segments.push({ text: text.slice(last), wildcard: false });
@@ -867,7 +870,7 @@
         }
       });
     
-      return { rawTokens, normTokens, isWildcardToken, spanIds };
+      return { rawTokens, normTokens, isWildcardToken, spanIds, wildcardTexts };
     }
     
     // Tokenize user text (no wildcards)
@@ -1005,6 +1008,7 @@
         H: user.rawTokens,
         isWildcardToken: ref.isWildcardToken,
         spanIds: ref.spanIds,
+        wildcardTexts: ref.wildcardTexts,
         missedIdx,
         addedIdx,
         missed: missedIdx.map(k => ref.rawTokens[k]),
@@ -1025,8 +1029,20 @@
       const diff = diffWordsWithIndex(ref, user);
       const {
         R, H, missedIdx, addedIdx, matchR, matchH,
-        wildcardToUserWords, userMatchedToWildcard, fuzzyR, fuzzyH, isWildcardToken
+        wildcardToUserWords, userMatchedToWildcard, fuzzyR, fuzzyH, isWildcardToken, spanIds, wildcardTexts
       } = diff;
+
+      // Map user index -> wildcard replacement text (first consumed word shows replacement, second hidden)
+      const userIdxToWildcardText = new Map();
+      if (wildcardToUserWords && spanIds && wildcardTexts) {
+        for (const [refIdx, userIdxList] of wildcardToUserWords.entries()) {
+          const spanId = spanIds[refIdx];
+          const rep = spanId >= 0 && wildcardTexts[spanId] ? wildcardTexts[spanId] : R[refIdx];
+          userIdxList.forEach((uIdx, pos) => {
+            userIdxToWildcardText.set(uIdx, pos === 0 ? rep : '');
+          });
+        }
+      }
 
       let refHTML = "";
       let userHTML = "";
@@ -1050,7 +1066,10 @@
 
       // User side
       for (let i = 0; i < H.length; i++) {
-        if (userMatchedToWildcard.has(i)) {
+        if (userIdxToWildcardText.has(i)) {
+          const rep = userIdxToWildcardText.get(i);
+          userHTML += rep ? `<span>${rep} </span>` : `<span></span>`;
+        } else if (userMatchedToWildcard.has(i)) {
           userHTML += `<span>${H[i]} </span>`;
         } else if (addedIdx.includes(i)) {
           userHTML += `<span class="highlight-added">${H[i]} </span>`;
