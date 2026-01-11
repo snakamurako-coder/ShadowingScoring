@@ -268,40 +268,43 @@
       </div>
     </div>
 
+    <!-- 書籍・単元 -->
     <div class="controls">
       <select id="sel-book" onchange="onBookChange()">
-        <option value="">書籍を選択</option>
+        <option value="">学年＋科目を選択</option>
       </select>
       <select id="sel-unit" onchange="onUnitChange()" disabled>
-        <option value="">ユニットを選択</option>
+        <option value="">単元を選択</option>
       </select>
     </div>
 
+    <!-- アクセント・再生速度 -->
+    <div class="controls">
+      <div>
+        <label style="font-size:12px; color:#666;">アクセント</label>
+        <select id="sel-accent" style="margin-top:5px;">
+          <option value="en-US" selected>米国英語</option>
+          <option value="en-GB">英国英語</option>
+        </select>
+      </div>
+      <select id="sel-speed">
+        <option value="0.6">速度: x0.6</option>
+        <option value="0.7">速度: x0.7</option>
+        <option value="0.8">速度: x0.8</option>
+        <option value="0.9">速度: x0.9</option>
+        <option value="1.0" selected>速度: x1.0（通常）</option>
+        <option value="1.1">速度: x1.1</option>
+        <option value="1.2">速度: x1.2</option>
+      </select>
+    </div>
+
+    <!-- 課題・マイク音量 -->
     <div class="controls">
       <select id="sel-task" onchange="onTaskChange()" disabled>
         <option value="">課題を選択</option>
       </select>
-      <select id="sel-speed">
-        <option value="0.6">Speed: x0.6</option>
-        <option value="0.7">Speed: x0.7</option>
-        <option value="0.8">Speed: x0.8</option>
-        <option value="0.9">Speed: x0.9</option>
-        <option value="1.0" selected>Speed: x1.0 (Normal)</option>
-        <option value="1.1">Speed: x1.1</option>
-        <option value="1.2">Speed: x1.2</option>
-      </select>
-    </div>
-
-    <div class="controls">
       <div>
-        <label style="font-size:12px; color:#666;">Accent:</label>
-        <select id="sel-accent" style="margin-top:5px;">
-          <option value="en-US" selected>US English</option>
-          <option value="en-GB">UK English</option>
-        </select>
-      </div>
-      <div>
-        <label style="font-size:12px; color:#666;">Mic Volume:</label>
+        <label style="font-size:12px; color:#666;">マイク音量（調整用）</label>
         <div class="volume-meter">
           <div id="volume-bar" class="volume-bar"></div>
         </div>
@@ -605,8 +608,6 @@
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            channelCount: 1,
-            sampleRate: 24000, // 希望値（ブラウザによっては無視される場合あり）
             echoCancellation: false,
             noiseSuppression: false,
             autoGainControl: false
