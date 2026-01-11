@@ -106,53 +106,31 @@
     }
 
     .score-display {
-      font-size: 1.5em;
+      font-size: 1.6em;
       font-weight: bold;
       color: #27ae60;
-      position: relative;
-      display: inline-block;
-      padding: 0 10px;
+      padding: 0 6px;
     }
 
     .score-container {
-      position: relative;
       display: inline-block;
       margin: 0 10px;
     }
 
-    .score-arch {
-      position: absolute;
-      top: -20px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 60px;
-      height: 30px;
-      border: 3px solid #27ae60;
-      border-bottom: none;
-      border-radius: 60px 60px 0 0;
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    @keyframes archDraw {
-      0% {
-        opacity: 0;
-        transform: translateX(-50%) scale(0.3) translateY(10px);
-      }
-      50% {
-        opacity: 0.8;
-      }
-      100% {
-        opacity: 1;
-        transform: translateX(-50%) scale(1) translateY(0);
-      }
-    }
-
     .score-formula {
-      font-size: 0.85em;
+      font-size: 0.9em;
       color: #666;
       margin-top: 5px;
       font-family: 'Courier New', monospace;
+      white-space: nowrap;
+    }
+
+    .footer {
+      margin-top: 40px;
+      font-size: 12px;
+      color: #777;
+      text-align: center;
+      line-height: 1.5;
     }
 
     .diff-text {
@@ -282,26 +260,26 @@
 
   <div class="container">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2>Shadowing Practice</h2>
+      <h2>シャドーイング練習</h2>
       <div style="text-align:right;">
-        <div id="user-display">Loading User...</div>
+        <div id="user-display">ユーザー情報を取得中...</div>
         <button onclick="loadMaterials(true)"
-          style="width:auto; padding: 2px 8px; font-size:10px; margin-top:5px;">Refresh Books</button>
+          style="width:auto; padding: 2px 8px; font-size:10px; margin-top:5px;">教材を更新</button>
       </div>
     </div>
 
     <div class="controls">
       <select id="sel-book" onchange="onBookChange()">
-        <option value="">Select Book</option>
+        <option value="">書籍を選択</option>
       </select>
       <select id="sel-unit" onchange="onUnitChange()" disabled>
-        <option value="">Select Unit</option>
+        <option value="">ユニットを選択</option>
       </select>
     </div>
 
     <div class="controls">
       <select id="sel-task" onchange="onTaskChange()" disabled>
-        <option value="">Select Task</option>
+        <option value="">課題を選択</option>
       </select>
       <select id="sel-speed">
         <option value="0.6">Speed: x0.6</option>
@@ -334,15 +312,15 @@
 
     <div id="button-area" style="text-align:center; margin-top: 20px; display:flex; justify-content: center; gap: 20px;">
       <button id="btn-start" onclick="startShadowing()" disabled style="width: 180px; height: 50px; font-size: 18px;">
-        Start Shadowing
+        開始
       </button>
       <button id="btn-finish-reading" onclick="finishReading()" disabled
         style="width: 150px; height: 50px; font-size: 18px; background-color: #27ae60; display: none;">
-        Finish Reading
+        終了
       </button>
       <button id="btn-stop" onclick="stopShadowingWithConfirm()" disabled
         style="width: 100px; height: 50px; font-size: 18px; background-color: #95a5a6;">
-        Stop
+        中断
       </button>
     </div>
 
@@ -354,23 +332,19 @@
     <audio id="audio-player" style="display:none;"></audio>
 
     <div id="reading-mode-area">
-      <button class="scroll-btn" onclick="scrollRead(-50)">▲ Scroll Up</button>
+      <button class="scroll-btn" onclick="scrollRead(1)">▼ 次の行へ</button>
       <div id="reading-text-area"></div>
-      <button class="scroll-btn" onclick="scrollRead(50)">▼ Scroll Down</button>
     </div>
 
     <div id="result-area">
       <div style="margin-bottom: 15px;">
         <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
           <div class="score-container">
-            <div class="score-arch" id="reading-arch"></div>
-            Reading Score: <span id="score-val" class="score-display">--</span>%
-            <div class="score-formula" id="reading-formula"></div>
+            音読スコア: <span id="score-val" class="score-display">--</span>
           </div>
           <div class="score-container" id="shadowing-score-container" style="display: none;">
             <span style="margin: 0 10px;">|</span>
-            <div class="score-arch" id="shadowing-arch"></div>
-            Shadowing Score: <span id="shadow-score-val" class="score-display">--</span>%
+            シャドーイングスコア: <span id="shadow-score-val" class="score-display">--</span>
             <div class="score-formula" id="shadowing-formula"></div>
           </div>
         </div>
@@ -378,17 +352,17 @@
 
       <div class="stt-comparison">
         <div class="stt-box">
-          <h4>Your Speech (STT)</h4>
+          <h4>あなたの発話（STT）</h4>
           <div id="user-stt-display"></div>
         </div>
         <div class="stt-box">
-          <h4>Reference Text</h4>
+          <h4>参照テキスト</h4>
           <div id="ref-text-display"></div>
         </div>
       </div>
 
       <div class="practice-list" id="practice-area">
-        <h4>Pronunciation Practice</h4>
+        <h4>発音練習</h4>
         <div id="practice-items"></div>
       </div>
     </div>
@@ -497,7 +471,7 @@
           isReadingMode = true;
           document.getElementById('reading-mode-area').style.display = 'block';
           document.getElementById('reading-text-area').innerText = currentTask.displayText || currentTask.refText;
-          document.getElementById('btn-start').innerHTML = "Start Reading";
+          document.getElementById('btn-start').innerHTML = "音読開始";
           document.getElementById('btn-start').disabled = false;
           document.getElementById('btn-finish-reading').style.display = 'none'; // Hide until recording starts
           document.getElementById('sel-speed').disabled = true; // No speed for reading
@@ -507,7 +481,7 @@
         } else {
           isReadingMode = false;
           document.getElementById('reading-mode-area').style.display = 'none';
-          document.getElementById('btn-start').innerHTML = "Start Shadowing";
+          document.getElementById('btn-start').innerHTML = "シャドーイング開始";
           document.getElementById('btn-start').disabled = true; // Wait for audio
           document.getElementById('btn-finish-reading').style.display = 'none'; // Hide in shadowing mode
           document.getElementById('sel-speed').disabled = false;
@@ -520,9 +494,11 @@
       }
     }
 
-    function scrollRead(offset) {
+    function scrollRead(lines = 1) {
       const el = document.getElementById('reading-text-area');
-      el.scrollTop += offset;
+      const lineHeightStr = getComputedStyle(el).lineHeight;
+      const lineHeight = parseFloat(lineHeightStr) || 24;
+      el.scrollTop += lineHeight * lines;
     }
 
     function finishReading() {
@@ -705,10 +681,10 @@
     function stopShadowingWithConfirm() {
       if (!isShadowing) return;
       
-      const confirmed = confirm("途中までの記録は、文字起こし・音声ともにデータは削除されてしまいますが、良いですか？\n\nはい（OK）: 削除して停止\nいいえ（キャンセル）: 続行");
+      const confirmed = confirm("途中までの記録は、文字起こし・音声ともにデータは削除されてしまいますが、良いですか？\n\nはい（OK）: 削除して中断\nいいえ（キャンセル）: 続行");
       
       if (confirmed) {
-        // はい = 削除して停止
+        // はい = 削除して中断
         stopShadowing(false);
       }
       // いいえ = 続行（何もしない）
@@ -773,17 +749,15 @@
           // Display Results
           document.getElementById('result-area').style.display = 'block';
           
-          // Display Reading Score with animation and formula
-          const readingFormula = `音読スコア = max(0, round(100 × (1 - WER))) = max(0, round(100 × (1 - ${rate.toFixed(3)}))) = ${readingScore}`;
-          displayScoreWithAnimation('score-val', readingScore, 'reading-arch', 'reading-formula', 
-            readingFormula, false);
+          // Display Reading Score (数値のみ)
+          displayScoreStatic('score-val', readingScore);
           
           // Display Shadowing Score only if not in reading mode
           if (!isReadingMode) {
             document.getElementById('shadowing-score-container').style.display = 'block';
             const shadowingFormula = `シャドーイングスコア = min(100, 音読スコア × (1 + (再生速度 - 1) / 2)) = min(100, ${readingScore} × ${correctionFactor.toFixed(2)}) = ${shadowingScore}`;
-            displayScoreWithAnimation('shadow-score-val', shadowingScore, 'shadowing-arch', 'shadowing-formula',
-              shadowingFormula, true);
+            displayScoreStatic('shadow-score-val', shadowingScore);
+            document.getElementById('shadowing-formula').textContent = shadowingFormula;
           } else {
             document.getElementById('shadowing-score-container').style.display = 'none';
           }
@@ -1129,67 +1103,16 @@
       window.speechSynthesis.speak(u);
     }
 
-    // Display score with arch animation and color based on score
-    function displayScoreWithAnimation(scoreElementId, score, archElementId, formulaElementId, formulaText, isShadowing) {
+    // Display score without animation; set color by value
+    function displayScoreStatic(scoreElementId, score) {
       const scoreElement = document.getElementById(scoreElementId);
-      const archElement = document.getElementById(archElementId);
-      const formulaElement = document.getElementById(formulaElementId);
-      
-      // Set formula text
-      formulaElement.textContent = formulaText;
-      
-      // Determine color based on score
       let color;
-      if (score >= 90) {
-        color = '#27ae60'; // Green
-      } else if (score >= 70) {
-        color = '#f39c12'; // Orange
-      } else if (score >= 50) {
-        color = '#e67e22'; // Dark orange
-      } else {
-        color = '#e74c3c'; // Red
-      }
-      
-      // Set arch color
-      archElement.style.borderColor = color;
-      
-      // Reset animation
-      archElement.style.animation = 'none';
-      archElement.offsetHeight; // Trigger reflow
-      archElement.style.animation = '';
-      
-      // Animate score value
-      let currentScore = 0;
-      const targetScore = score;
-      const duration = 1500; // 1.5 seconds
-      const startTime = Date.now();
-      
-      function updateScore() {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // Easing function (ease-out)
-        const eased = 1 - Math.pow(1 - progress, 3);
-        currentScore = Math.round(targetScore * eased);
-        
-        scoreElement.textContent = currentScore;
-        scoreElement.style.color = color;
-        
-        // Update arch color gradually
-        if (progress < 1) {
-          requestAnimationFrame(updateScore);
-        } else {
-          scoreElement.textContent = targetScore;
-          scoreElement.style.color = color;
-        }
-      }
-      
-      updateScore();
-      
-      // Trigger arch animation
-      setTimeout(() => {
-        archElement.style.animation = 'archDraw 1.5s ease-out forwards';
-      }, 100);
+      if (score >= 90) color = '#27ae60';
+      else if (score >= 70) color = '#f39c12';
+      else if (score >= 50) color = '#e67e22';
+      else color = '#e74c3c';
+      scoreElement.textContent = score;
+      scoreElement.style.color = color;
     }
 
     // --- Upload & Naming ---
@@ -1277,6 +1200,12 @@
       };
     }
   </script>
+
+  <div class="footer">
+    © 2025 Kojiro Nakamura. All rights reserved.<br>
+    Unauthorized reproduction or redistribution is prohibited.<br>
+    Contact: snakamurako@yamagataps.jp
+  </div>
 
 </body>
 
