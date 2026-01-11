@@ -272,7 +272,7 @@
 
   <div class="container">
     <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2>シャドーイング練習</h2>
+      <h2>音読スコアリングアプリ</h2>
       <div style="text-align:right;">
         <div id="user-display">ユーザー情報を取得中...</div>
         <button onclick="loadMaterials(true)"
@@ -361,7 +361,7 @@
           </div>
           <div class="score-container" id="shadowing-score-container" style="display: none;">
             <span style="margin: 0 10px;">|</span>
-            シャドーイングスコア: <span id="shadow-score-val" class="score-display">--</span>
+            シャドイングスコア: <span id="shadow-score-val" class="score-display">--</span>
             <div class="score-formula" id="shadowing-formula"></div>
           </div>
         </div>
@@ -508,7 +508,7 @@
         } else {
           isReadingMode = false;
           document.getElementById('reading-mode-area').style.display = 'none';
-          document.getElementById('btn-start').innerHTML = "シャドーイング開始";
+          document.getElementById('btn-start').innerHTML = "シャドイング開始";
           document.getElementById('btn-start').disabled = true; // Wait for audio
           document.getElementById('btn-finish-reading').style.display = 'none'; // Hide in shadowing mode
           document.getElementById('sel-speed').disabled = false;
@@ -770,7 +770,7 @@
 
           // 補正係数の計算: correctionFactor = 1 + (playbackSpeed - 1) / 2
           const correctionFactor = 1 + (usedSpeed - 1) / 2;
-          // シャドーイングスコアの計算: accuracy × correctionFactor（最大100）
+          // シャドイングスコアの計算: accuracy × correctionFactor（最大100）
           const shadowingScore = Math.min(100, Math.round(readingScore * correctionFactor));
 
           // Display Results
@@ -782,7 +782,7 @@
           // Display Shadowing Score only if not in reading mode
           if (!isReadingMode) {
             document.getElementById('shadowing-score-container').style.display = 'block';
-            const shadowingFormula = `シャドーイングスコア = min(100, 音読スコア × (1 + (再生速度 - 1) / 2)) = min(100, ${readingScore} × ${correctionFactor.toFixed(2)}) = ${shadowingScore}`;
+            const shadowingFormula = `シャドイングスコア = min(100, 音読スコア × (1 + (再生速度 - 1) / 2)) = min(100, ${readingScore} × ${correctionFactor.toFixed(2)}) = ${shadowingScore}`;
             displayScoreStatic('shadow-score-val', shadowingScore);
             document.getElementById('shadowing-formula').textContent = shadowingFormula;
           } else {
