@@ -56,6 +56,40 @@
       cursor: not-allowed;
     }
 
+    .small-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+      width: auto;
+    }
+
+    /* Submission overlay */
+    #submission-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .submission-modal {
+      background: #fff;
+      padding: 20px 24px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      text-align: center;
+      max-width: 320px;
+      width: 90%;
+      line-height: 1.6;
+    }
+
+    .submission-modal button {
+      margin-top: 12px;
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+
     button {
       background-color: #3498db;
       color: white;
@@ -323,6 +357,8 @@
           <div class="volume-meter">
             <div id="volume-bar" class="volume-bar"></div>
           </div>
+          <button id="btn-volume-check" class="small-btn" style="margin-top:8px;"
+            onclick="startVolumeCheck()">音量確認</button>
         </div>
       </div>
     </div>
@@ -386,7 +422,10 @@
       <div id="playback-area" style="margin-top:10px; display:none;">
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
           <audio id="playback-audio" controls style="max-width:300px;"></audio>
-          <a id="download-link" href="#" download="recording.webm" style="font-size:14px; color:#1976d2;">録音をダウンロード</a>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <a id="download-link" href="#" download="recording.webm" style="font-size:14px; color:#1976d2;">録音をダウンロード（webm）</a>
+            <span style="font-size:12px; color:#777;">※記録用としては、こちらのwebm形式が一般的なので、こちらを保存してください。</span>
+          </div>
         </div>
       </div>
     </div>
@@ -409,6 +448,9 @@
     let gainNode = null;
     let silenceTimer = null;
     let isReadingMode = false;
+    let isVolumeCheckActive = false;
+    let volumeCheckStream = null;
+    let volumeCheckTimer = null;
 
     // --- Initialization ---
     window.onload = function () {
@@ -584,7 +626,7 @@
     }
 
     function drawVolume() {
-      if (!isShadowing) return;
+      if (!isShadowing && !isVolumeCheckActive) return;
       requestAnimationFrame(drawVolume);
 
       const bufferLength = analyser.frequencyBinCount;
@@ -713,6 +755,10 @@
 
     // Stop button with confirmation dialog
     function stopShadowingWithConfirm() {
+      if (isVolumeCheckActive && !isShadowing) {
+        stopVolumeCheck();
+        return;
+      }
       if (!isShadowing) return;
       
       const confirmed = confirm("途中までの記録は、文字起こし・音声ともにデータは削除されてしまいますが、良いですか？\n\nはい（OK）: 削除して中断\nいいえ（キャンセル）: 続行");
@@ -1210,9 +1256,17 @@
           })
         };
 
-        google.script.run.withSuccessHandler(() => {
-          console.log("Upload Complete");
-        }).saveSubmission(payload);
+        google.script.run
+          .withSuccessHandler(() => {
+            console.log("Upload Complete");
+            showSubmissionStatus(true);
+          })
+          .withFailureHandler(err => {
+            console.error("Upload Failed", err);
+            showSubmissionStatus(false);
+            setStatus("Error", false);
+          })
+          .saveSubmission(payload);
       };
     }
 
@@ -1220,6 +1274,72 @@
     function setStatus(msg, isLoading) {
       document.getElementById('status-area').innerText = msg;
       document.getElementById('loader').style.display = isLoading ? 'block' : 'none';
+    }
+
+    function showSubmissionStatus(isSuccess) {
+      const overlay = document.getElementById('submission-overlay');
+      const msgEl = document.getElementById('submission-message');
+      if (!overlay || !msgEl) return;
+      if (isSuccess) {
+        msgEl.innerText = '提出が完了しました。';
+      } else {
+        msgEl.innerText = '提出に失敗しました。管理者に問い合わせてください。';
+      }
+      overlay.style.display = 'flex';
+    }
+
+    function hideSubmissionStatus() {
+      const overlay = document.getElementById('submission-overlay');
+      if (overlay) overlay.style.display = 'none';
+    }
+
+    // --- Volume Check (10s) ---
+    async function startVolumeCheck() {
+      if (isVolumeCheckActive || isShadowing) return;
+      isVolumeCheckActive = true;
+      setStatus('音量確認中（10秒）', true);
+      const btnStart = document.getElementById('btn-start');
+      const btnVolumeCheck = document.getElementById('btn-volume-check');
+      if (btnStart) btnStart.disabled = true;
+      if (btnVolumeCheck) btnVolumeCheck.disabled = true;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: 24000,
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        });
+        volumeCheckStream = stream;
+        setupAudioContext(stream);
+        volumeCheckTimer = setTimeout(() => {
+          stopVolumeCheck();
+        }, 10000);
+      } catch (err) {
+        console.error(err);
+        alert("音量確認の開始に失敗しました: " + err.message);
+        stopVolumeCheck();
+      }
+    }
+
+    function stopVolumeCheck() {
+      if (!isVolumeCheckActive) return;
+      isVolumeCheckActive = false;
+      if (volumeCheckTimer) {
+        clearTimeout(volumeCheckTimer);
+        volumeCheckTimer = null;
+      }
+      if (volumeCheckStream) {
+        volumeCheckStream.getTracks().forEach(t => t.stop());
+        volumeCheckStream = null;
+      }
+      const btnStart = document.getElementById('btn-start');
+      const btnVolumeCheck = document.getElementById('btn-volume-check');
+      if (!isShadowing && btnStart) btnStart.disabled = false;
+      if (btnVolumeCheck) btnVolumeCheck.disabled = false;
+      setStatus('Ready', false);
     }
 
     function formatDate(date, format) {
@@ -1262,6 +1382,13 @@
     © 2025 Kojiro Nakamura. All rights reserved.<br>
     Unauthorized reproduction or redistribution is prohibited.<br>
     Contact: snakamurako@yamagataps.jp
+  </div>
+
+  <div id="submission-overlay">
+    <div class="submission-modal">
+      <div id="submission-message">提出が完了しました。</div>
+      <button onclick="hideSubmissionStatus()">確認</button>
+    </div>
   </div>
 
 </body>
