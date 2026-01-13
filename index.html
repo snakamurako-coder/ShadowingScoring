@@ -309,7 +309,10 @@
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <h2>音読スコアリングアプリ</h2>
       <div style="text-align:right;">
-        <div id="user-display">ユーザー情報を取得中...</div>
+        <div id="user-display">Login:
+          <?= userEmail ?>
+        </div>
+        <div id="user-info-display" style="font-size:10px; color:#555;">(Loading info...)</div>
         <button onclick="loadMaterials(true)"
           style="width:auto; padding: 2px 8px; font-size:10px; margin-top:5px;">教材を更新</button>
       </div>
@@ -456,15 +459,25 @@
     let volumeCheckTimer = null;
 
     // --- Initialization ---
+    // --- Initialization ---
     window.onload = function () {
+      // サーバーから渡されたemailはHTMLレンダリング時に埋め込まれている (<?= userEmail ?>)
+      // 表示は既にサーバサイドレンダリングで行われているが、JS変数としても保持可能。
+
+      // 念のためWhitelistから詳細情報を取得して表示（必須ではないが便利機能として維持）
       google.script.run.withSuccessHandler(user => {
         currentUser = user;
-        document.getElementById('user-display').innerText = `${user.name} (${user.id4})`;
-        if (!user.isAuthorized) alert("Unregistered User. Please contact admin.");
+        const display = document.getElementById('user-info-display');
 
-        // Load Materials
+        if (user.name && user.name !== 'Guest') {
+          display.innerText = `${user.name} (${user.id4})`;
+        } else {
+          display.innerText = "Guest / Unregistered (Recording will be saved with email)";
+        }
+
+        // Load Materials regardless of verify status (Open Access)
         loadMaterials();
-      }).getUserInfo();
+      }).getUserInfo(); // getUserInfo側は変更なし（Whitelistチェック）
     };
 
 
