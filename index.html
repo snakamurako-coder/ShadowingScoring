@@ -35,6 +35,7 @@
       margin-bottom: 20px;
       align-items: start;
     }
+
     .controls-stack {
       display: flex;
       flex-direction: column;
@@ -363,7 +364,8 @@
       </div>
     </div>
 
-    <div id="button-area" style="text-align:center; margin-top: 20px; display:flex; justify-content: center; gap: 20px;">
+    <div id="button-area"
+      style="text-align:center; margin-top: 20px; display:flex; justify-content: center; gap: 20px;">
       <button id="btn-start" onclick="startShadowing()" disabled style="width: 180px; height: 50px; font-size: 18px;">
         開始
       </button>
@@ -423,7 +425,8 @@
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
           <audio id="playback-audio" controls style="max-width:300px;"></audio>
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <a id="download-link" href="#" download="recording.webm" style="font-size:14px; color:#1976d2;">録音をダウンロード（webm）</a>
+            <a id="download-link" href="#" download="recording.webm"
+              style="font-size:14px; color:#1976d2;">録音をダウンロード（webm）</a>
             <span style="font-size:12px; color:#777;">※記録用としては、こちらのwebm形式が一般的なので、こちらを保存してください。</span>
           </div>
         </div>
@@ -760,9 +763,9 @@
         return;
       }
       if (!isShadowing) return;
-      
+
       const confirmed = confirm("途中までの記録は、文字起こし・音声ともにデータは削除されてしまいますが、良いですか？\n\nはい（OK）: 削除して中断\nいいえ（キャンセル）: 続行");
-      
+
       if (confirmed) {
         // はい = 削除して中断
         stopShadowing(false);
@@ -785,93 +788,93 @@
 
         if (mediaRecorder) {
           mediaRecorder.onstop = async () => {
-          // Stop Tracks
-          mediaRecorder.stream.getTracks().forEach(track => track.stop());
-          isShadowing = false;
-          document.getElementById('btn-start').disabled = false;
-          document.getElementById('btn-stop').disabled = true;
-          if (isReadingMode) {
-            document.getElementById('btn-finish-reading').style.display = 'none';
-            document.getElementById('btn-finish-reading').disabled = true;
-            // Reset button spacing
-            document.getElementById('button-area').style.gap = '20px';
-          }
+            // Stop Tracks
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            isShadowing = false;
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('btn-stop').disabled = true;
+            if (isReadingMode) {
+              document.getElementById('btn-finish-reading').style.display = 'none';
+              document.getElementById('btn-finish-reading').disabled = true;
+              // Reset button spacing
+              document.getElementById('button-area').style.gap = '20px';
+            }
 
-          if (!isSubmit) {
-            setStatus("Stopped.", false);
-            return; // Exit without processing
-          }
+            if (!isSubmit) {
+              setStatus("Stopped.", false);
+              return; // Exit without processing
+            }
 
-          setStatus("Processing results...", true);
+            setStatus("Processing results...", true);
 
-          const blob = new Blob(audioChunks, { 'type': 'audio/webm;codecs=opus' });
+            const blob = new Blob(audioChunks, { 'type': 'audio/webm;codecs=opus' });
 
-          // --- Scoring Logic ---
-          const refText = currentTask.refText;
-          const userText = finalTranscript.trim();
+            // --- Scoring Logic ---
+            const refText = currentTask.refText;
+            const userText = finalTranscript.trim();
 
-          // 1. Reading Score (Base) - WER based
-          const { wer: rate, dist, refLen, hypLen } = wer(refText, userText);
-          // Simple score: 1 - WER, floored at 0
-          const readingScore = Math.max(0, Math.round(100 * (1 - rate)));
+            // 1. Reading Score (Base) - WER based
+            const { wer: rate, dist, refLen, hypLen } = wer(refText, userText);
+            // Simple score: 1 - WER, floored at 0
+            const readingScore = Math.max(0, Math.round(100 * (1 - rate)));
 
-          // 2. Shadowing Score (Correction)
-          // Score = Reading Score * (1 + (Speed - 1) / 2)
-          const speed = parseFloat(document.getElementById('sel-speed').value);
-          // If Reading Mode (No Speed), treat as 1.0
-          const usedSpeed = isReadingMode ? 1.0 : speed;
+            // 2. Shadowing Score (Correction)
+            // Score = Reading Score * (1 + (Speed - 1) / 2)
+            const speed = parseFloat(document.getElementById('sel-speed').value);
+            // If Reading Mode (No Speed), treat as 1.0
+            const usedSpeed = isReadingMode ? 1.0 : speed;
 
-          // 補正係数の計算: correctionFactor = 1 + (playbackSpeed - 1) / 2
-          const correctionFactor = 1 + (usedSpeed - 1) / 2;
-          // シャドイングスコアの計算: accuracy × correctionFactor（最大100）
-          const shadowingScore = Math.min(100, Math.round(readingScore * correctionFactor));
+            // 補正係数の計算: correctionFactor = 1 + (playbackSpeed - 1) / 2
+            const correctionFactor = 1 + (usedSpeed - 1) / 2;
+            // シャドイングスコアの計算: accuracy × correctionFactor（最大100）
+            const shadowingScore = Math.min(100, Math.round(readingScore * correctionFactor));
 
-          // Display Results
-          document.getElementById('result-area').style.display = 'block';
-          
-          // Display Reading Score (数値のみ)
-          displayScoreStatic('score-val', readingScore);
-          
-          // Display Shadowing Score only if not in reading mode
-          if (!isReadingMode) {
-            document.getElementById('shadowing-score-container').style.display = 'block';
-            const shadowingFormula = `シャドイングスコア = min(100, 音読スコア × (1 + (再生速度 - 1) / 2)) = min(100, ${readingScore} × ${correctionFactor.toFixed(2)}) = ${shadowingScore}`;
-            displayScoreStatic('shadow-score-val', shadowingScore);
-            document.getElementById('shadowing-formula').textContent = shadowingFormula;
-          } else {
-            document.getElementById('shadowing-score-container').style.display = 'none';
-          }
+            // Display Results
+            document.getElementById('result-area').style.display = 'block';
 
-          // Visual Comparison
-          compareAndVisualize(refText, userText);
+            // Display Reading Score (数値のみ)
+            displayScoreStatic('score-val', readingScore);
 
-          // Playback & download setup
-          const filenameBase = (() => {
-            const now = new Date();
-            const pad = (n) => (n < 10 ? '0' + n : n);
-            const yy = now.getFullYear().toString().substr(-2);
-            const mm = pad(now.getMonth() + 1);
-            const dd = pad(now.getDate());
-            const hh = pad(now.getHours());
-            const mi = pad(now.getMinutes());
-            const ss = pad(now.getSeconds());
-            return `${document.getElementById('sel-book').value || 'book'}_${document.getElementById('sel-unit').value || 'unit'}_${currentTask?.id || 'task'}_${yy}${mm}${dd}_${hh}${mi}${ss}`;
-          })();
-          const playbackUrl = URL.createObjectURL(blob);
-          const playbackAudio = document.getElementById('playback-audio');
-          const downloadLink = document.getElementById('download-link');
-          if (playbackAudio) playbackAudio.src = playbackUrl;
-          if (downloadLink) {
-            downloadLink.href = playbackUrl;
-            downloadLink.download = `${filenameBase}.webm`;
-          }
-          const playbackArea = document.getElementById('playback-area');
-          if (playbackArea) playbackArea.style.display = 'block';
+            // Display Shadowing Score only if not in reading mode
+            if (!isReadingMode) {
+              document.getElementById('shadowing-score-container').style.display = 'block';
+              const shadowingFormula = `シャドイングスコア = min(100, 音読スコア × (1 + (再生速度 - 1) / 2)) = min(100, ${readingScore} × ${correctionFactor.toFixed(2)}) = ${shadowingScore}`;
+              displayScoreStatic('shadow-score-val', shadowingScore);
+              document.getElementById('shadowing-formula').textContent = shadowingFormula;
+            } else {
+              document.getElementById('shadowing-score-container').style.display = 'none';
+            }
 
-          // Upload
-          uploadData(blob, shadowingScore, readingScore, usedSpeed, userText);
-          setStatus("Finished", false);
-        };
+            // Visual Comparison
+            compareAndVisualize(refText, userText);
+
+            // Playback & download setup
+            const filenameBase = (() => {
+              const now = new Date();
+              const pad = (n) => (n < 10 ? '0' + n : n);
+              const yy = now.getFullYear().toString().substr(-2);
+              const mm = pad(now.getMonth() + 1);
+              const dd = pad(now.getDate());
+              const hh = pad(now.getHours());
+              const mi = pad(now.getMinutes());
+              const ss = pad(now.getSeconds());
+              return `${document.getElementById('sel-book').value || 'book'}_${document.getElementById('sel-unit').value || 'unit'}_${currentTask?.id || 'task'}_${yy}${mm}${dd}_${hh}${mi}${ss}`;
+            })();
+            const playbackUrl = URL.createObjectURL(blob);
+            const playbackAudio = document.getElementById('playback-audio');
+            const downloadLink = document.getElementById('download-link');
+            if (playbackAudio) playbackAudio.src = playbackUrl;
+            if (downloadLink) {
+              downloadLink.href = playbackUrl;
+              downloadLink.download = `${filenameBase}.webm`;
+            }
+            const playbackArea = document.getElementById('playback-area');
+            if (playbackArea) playbackArea.style.display = 'block';
+
+            // Upload
+            uploadData(blob, shadowingScore, readingScore, usedSpeed, userText);
+            setStatus("Finished", false);
+          };
         }
       } else {
         isShadowing = false;
@@ -881,12 +884,12 @@
     // --- Wildcard-aware tokenization & utilities ---
     const WILDCARD_MAX_CONSUME = 2; // How many user tokens a wildcard can absorb
     const FUZZY_DISTANCE_THRESHOLD = 1; // Levenshtein distance threshold for fuzzy match
-    
+
     // Helper: wildcard marker check (case-insensitive)
     function isWildcard(word) {
       return /^__WILDCARD_\d+__$/i.test(word);
     }
-    
+
     // Levenshtein distance (small tokens, simple implementation)
     function levenshtein(a, b) {
       const m = a.length, n = b.length;
@@ -905,19 +908,19 @@
       }
       return dp[m][n];
     }
-    
+
     // Fuzzy match for proper nouns / rare words
     function isFuzzyMatch(a, b) {
       if (!a || !b) return false;
       const dist = levenshtein(a, b);
       return dist <= FUZZY_DISTANCE_THRESHOLD;
     }
-    
+
     // Normalize quotes (smart quotes → ASCII apostrophe)
     function normalizeQuotes(text) {
       return text.replace(/[’‘`]/g, "'"); // extend if needed
     }
-    
+
     // Normalize Roman numerals to ASCII for matching (raw display keeps originals)
     function normalizeRomanForMatch(token) {
       const map = {
@@ -932,7 +935,7 @@
       }
       return out;
     }
-    
+
     // Tokenize reference text, marking wildcard spans without inserting tokens
     function tokenizeRefWithWildcards(text) {
       text = normalizeQuotes(text);
@@ -950,12 +953,12 @@
         last = m.index + m[0].length;
       }
       if (last < text.length) segments.push({ text: text.slice(last), wildcard: false });
-    
+
       const rawTokens = [];
       const normTokens = [];
       const isWildcardToken = [];
       const spanIds = [];
-    
+
       const wordRegex = /[A-Za-z0-9'ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹ]+/g;
       segments.forEach(seg => {
         let w;
@@ -967,10 +970,10 @@
           spanIds.push(seg.wildcard ? seg.spanId : -1);
         }
       });
-    
+
       return { rawTokens, normTokens, isWildcardToken, spanIds, wildcardTexts };
     }
-    
+
     // Tokenize user text (no wildcards)
     function tokenizeUser(text) {
       text = normalizeQuotes(text);
@@ -994,7 +997,7 @@
       const H = user.normTokens;
       const n = R.length;
       const m = H.length;
-    
+
       const dp = Array.from({ length: n + 1 }, () =>
         Array.from({ length: m + 1 }, () => ({ cost: Infinity, prev: null }))
       );
@@ -1008,13 +1011,13 @@
         dp[i][0].cost = wild ? 0 : i;
         dp[i][0].prev = { i: i - 1, j: 0, op: wild ? 'w0' : 'del' };
       }
-    
+
       for (let i = 0; i < n; i++) {
         for (let j = 0; j <= m; j++) {
           const cur = dp[i][j];
           if (cur.cost === Infinity) continue;
           const isWild = ref.isWildcardToken[i];
-    
+
           if (isWild) {
             // consume 0
             if (cur.cost < dp[i + 1][j].cost) {
@@ -1049,7 +1052,7 @@
           }
         }
       }
-    
+
       // Traceback
       let i = n, j = m;
       const matchR = new Set();
@@ -1060,12 +1063,12 @@
       const userMatchedToWildcard = new Set();
       const missedIdx = [];
       const addedIdx = [];
-    
+
       while (i > 0 || j > 0) {
         const node = dp[i][j];
         if (!node || !node.prev) break;
         const { i: pi, j: pj, op } = node.prev;
-    
+
         if (op === 'match') {
           matchR.add(i - 1);
           matchH.add(j - 1);
@@ -1094,14 +1097,14 @@
           userMatchedToWildcard.add(pj);
           userMatchedToWildcard.add(pj + 1);
         }
-    
+
         i = pi;
         j = pj;
       }
-    
+
       missedIdx.reverse();
       addedIdx.reverse();
-    
+
       return {
         R: ref.rawTokens,
         H: user.rawTokens,
@@ -1379,6 +1382,8 @@
   </script>
 
   <div class="footer">
+    Voice by Ondoku3.com<br>
+    Powered by ElevenLabs<br>
     © 2025 Kojiro Nakamura. All rights reserved.<br>
     Unauthorized reproduction or redistribution is prohibited.<br>
     Contact: snakamurako@yamagataps.jp
